@@ -2,9 +2,25 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+// Utilidad para limpiar los errores de copy-paste en Vercel
+function getCleanUrl(): string | undefined {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url) return undefined;
+  const match = url.match(/(https:\/\/[a-zA-Z0-9\-_.]+\.supabase\.co)/);
+  return match ? match[1] : url.trim().replace(/^["']|["']$/g, '');
+}
+
+function getCleanServiceKey(): string | undefined {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key) return undefined;
+  // Extrae solo el JWT que empieza con eyJhbG ({"alg)
+  const match = key.match(/(eyJhbG[a-zA-Z0-9\-_.]+)/);
+  return match ? match[1] : key.trim().replace(/^["']|["']$/g, '');
+}
+
 export async function createUser(email: string, password: string, role: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const supabaseUrl = getCleanUrl();
+  const supabaseServiceKey = getCleanServiceKey();
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return { success: false, error: 'Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor.' };
@@ -18,11 +34,10 @@ export async function createUser(email: string, password: string, role: string) 
   });
 
   try {
-    // 1. Create the user
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: email,
       password: password,
-      email_confirm: true, // Auto-confirm the email
+      email_confirm: true,
     });
 
     if (authError) {
@@ -30,13 +45,11 @@ export async function createUser(email: string, password: string, role: string) 
     }
 
     if (authData?.user) {
-      // 2. Assign the role in user_roles
       const { error: roleError } = await supabaseAdmin
         .from('user_roles')
         .insert({ id: authData.user.id, role: role });
 
       if (roleError) {
-        // Rollback: delete the user if role assignment failed
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
         return { success: false, error: 'Error al asignar el rol: ' + roleError.message };
       }
@@ -52,8 +65,9 @@ export async function createUser(email: string, password: string, role: string) 
 }
 
 export async function getUsersList() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const supabaseUrl = getCleanUrl();
+  const supabaseServiceKey = getCleanServiceKey();
+  
   if (!supabaseUrl || !supabaseServiceKey) return [];
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -78,8 +92,9 @@ export async function getUsersList() {
 }
 
 export async function deleteUserAccount(userId: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const supabaseUrl = getCleanUrl();
+  const supabaseServiceKey = getCleanServiceKey();
+  
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Falta SUPABASE_SERVICE_ROLE_KEY' };
   
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
