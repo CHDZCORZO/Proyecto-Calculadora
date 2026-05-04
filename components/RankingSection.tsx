@@ -66,10 +66,17 @@ export function RankingSection() {
     fetchAllData();
   }, [selectedMonth, filtroPeriodo]);
 
-  // 2. FILTRADO Y AGRUPACIÓN LOCAL POR PERIODO
+  // 2. FILTRADO Y AGRUPACIÓN LOCAL POR PERIODO, SUCURSAL Y PRODUCTO
   useEffect(() => {
-    // Filtrar rawVentas por filtroPeriodo
+    // Filtrar rawVentas
     const filtered = rawVentas.filter(venta => {
+      // Filtro Producto
+      if (filtroProducto !== "Todos" && venta.tipo_producto !== filtroProducto) return false;
+      
+      // Filtro Sucursal
+      if (filtroSucursal !== "Todas" && venta.sucursal !== filtroSucursal) return false;
+
+      // Filtro Periodo
       if (filtroPeriodo === "Mes Completo" || filtroPeriodo === "Acumulado Anual") return true;
       if (!venta.fecha_venta) return true; // Fallback
       
@@ -106,7 +113,7 @@ export function RankingSection() {
     }));
 
     setDatosExcel(finalData);
-  }, [rawVentas, filtroPeriodo]);
+  }, [rawVentas, filtroPeriodo, filtroProducto, filtroSucursal]);
 
   if (!isDataLoaded) return (
     <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center space-y-4">
@@ -116,16 +123,14 @@ export function RankingSection() {
   );
 
   // 2. LÓGICA DE PRODUCTOS Y SUCURSALES ÚNICAS
-  const productosUnicos = ["Todos", ...Array.from(new Set(datosExcel.map(a => a.tipo_producto).filter(Boolean)))];
-  const sucursalesUnicas = ["Todas", ...Array.from(new Set(datosExcel.map(a => a.sucursal).filter(Boolean)))];
+  const productosUnicos = ["Todos", ...Array.from(new Set(rawVentas.map(a => a.tipo_producto).filter(Boolean)))].sort();
+  const sucursalesUnicas = ["Todas", ...Array.from(new Set(rawVentas.map(a => a.sucursal).filter(Boolean)))].sort();
 
   // 3. LÓGICA DE PUNTUACIÓN 50/50 Y RANKING
   const montoMaximo = Math.max(...datosExcel.map(a => a.monto_total), 1);
   const foliosMaximos = Math.max(...datosExcel.map(a => a.total_ventas), 1);
 
   const displayStaff = datosExcel
-    .filter(a => filtroProducto === "Todos" || a.tipo_producto === filtroProducto)
-    .filter(a => filtroSucursal === "Todas" || a.sucursal === filtroSucursal)
     .map(advisor => {
       // Fórmula Ponderada: 50% Monto + 50% Folios
       const scoreMonto = (advisor.monto_total / montoMaximo) * 50;
