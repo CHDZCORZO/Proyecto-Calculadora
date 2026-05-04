@@ -3,8 +3,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 export async function createUser(email: string, password: string, role: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
 
   if (!supabaseUrl || !supabaseServiceKey) {
     return { success: false, error: 'Falta configurar SUPABASE_SERVICE_ROLE_KEY en el servidor.' };
@@ -52,8 +52,8 @@ export async function createUser(email: string, password: string, role: string) 
 }
 
 export async function getUsersList() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!supabaseUrl || !supabaseServiceKey) return [];
 
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -78,8 +78,8 @@ export async function getUsersList() {
 }
 
 export async function deleteUserAccount(userId: string) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Falta SUPABASE_SERVICE_ROLE_KEY' };
   
   const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
