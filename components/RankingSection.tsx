@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { DashboardObjetivos } from './DashboardObjetivos';
 import { RankingCard } from './RankingCard';
 import { useAppStore } from '../hooks/useAppStore';
-import { Filter, Trophy as TrophyIcon, LayoutDashboard, Loader2 } from 'lucide-react';
+import { Filter, Trophy as TrophyIcon, LayoutDashboard, Loader2, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
 export function RankingSection() {
@@ -186,12 +186,13 @@ export function RankingSection() {
             {/* FILTROS */}
             <div className="flex flex-wrap gap-4 bg-neutral-900 p-3 rounded-2xl border border-neutral-800 shadow-inner">
               {/* Filtro Mes */}
-              <div className="flex items-center gap-2 px-3 border-r border-neutral-800">
+              <div className="flex items-center gap-2 px-3 border-r border-neutral-800 relative">
+                <Calendar className="w-4 h-4 text-indigo-500 pointer-events-none" />
                 <input
                   type="month"
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="bg-transparent text-xs font-black uppercase outline-none text-neutral-200 cursor-pointer"
+                  className="relative bg-transparent text-xs font-black uppercase outline-none text-neutral-200 cursor-pointer [&::-webkit-calendar-picker-indicator]:absolute [&::-webkit-calendar-picker-indicator]:inset-0 [&::-webkit-calendar-picker-indicator]:w-full [&::-webkit-calendar-picker-indicator]:h-full [&::-webkit-calendar-picker-indicator]:opacity-0 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
                 />
               </div>
 
