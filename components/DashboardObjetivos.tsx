@@ -9,10 +9,10 @@ interface DashboardProps {
   filtroPeriodo?: string;
 }
 
-// Configuración para forzar COMAS (estilo México/EE.UU.)
+// Configuración para forzar COMAS y omitir el "MX"
 const formatoMoneda = new Intl.NumberFormat('en-US', {
   style: 'currency',
-  currency: 'MXN',
+  currency: 'USD',
   minimumFractionDigits: 0,
   maximumFractionDigits: 0,
 });
@@ -150,8 +150,8 @@ export const DashboardObjetivos = ({
         </div>
 
         {/* Stats Cards */}
-        <div className="col-span-1 lg:col-span-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-neutral-800/40 backdrop-blur-sm rounded-3xl p-8 border border-neutral-700/50 flex flex-col justify-between col-span-1 md:col-span-2 relative overflow-hidden group">
+        <div className="col-span-1 lg:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-neutral-800/40 backdrop-blur-sm rounded-3xl p-8 border border-neutral-700/50 flex flex-col justify-between col-span-1 md:col-span-3 relative overflow-hidden group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
             <div className="flex justify-between items-center mb-6 relative z-10">
               <div className="flex items-center gap-4">
@@ -179,18 +179,25 @@ export const DashboardObjetivos = ({
 
             <div className="relative w-full h-4 bg-neutral-900 rounded-full overflow-hidden border border-neutral-800 mt-4 relative z-10">
               <div
-                className="absolute top-0 bottom-0 w-1.5 bg-white z-20 transition-all duration-1000 shadow-[0_0_10px_rgba(255,255,255,0.8)]"
-                style={{ left: `${(currentData.metaAlDia / currentData.meta) * 100}%` }}
-              ></div>
-              <div
                 className={`absolute top-0 bottom-0 left-0 bg-gradient-to-r ${currentData.real >= currentData.metaAlDia ? 'from-emerald-600 to-emerald-400' : 'from-blue-600 to-blue-400'} z-10 transition-all duration-1000`}
-                style={{ width: `${Math.min((currentData.real / currentData.meta) * 100, 100)}%` }}
+                style={{ width: `${currentData.metaAlDia > 0 ? Math.min((currentData.real / currentData.metaAlDia) * 100, 100) : 0}%` }}
               ></div>
             </div>
-            <div className="flex justify-between mt-4 text-xs text-neutral-500 font-black uppercase tracking-widest relative z-10">
-              <span>$0</span>
+            <div className="flex justify-end mt-4 text-xs text-neutral-500 font-black uppercase tracking-widest relative z-10">
               <span suppressHydrationWarning>Meta Total: {formatoMoneda.format(currentData.meta)}</span>
             </div>
+          </div>
+
+          <div className="bg-neutral-800/40 backdrop-blur-sm rounded-3xl p-8 border border-neutral-700/50 hover:border-indigo-500/30 transition-colors">
+            <div className="flex items-center gap-4 mb-6">
+              <div className="p-3 bg-indigo-500/10 rounded-2xl border border-indigo-500/20">
+                <CreditCard className="w-6 h-6 text-indigo-400" />
+              </div>
+              <h4 className="text-sm font-black uppercase tracking-widest text-neutral-300">Créditos Vendidos</h4>
+            </div>
+            <p className="text-4xl font-black text-white mb-2" suppressHydrationWarning>
+              {creditosGlobalesActuales}
+            </p>
           </div>
 
           <div className="bg-neutral-800/40 backdrop-blur-sm rounded-3xl p-8 border border-neutral-700/50 hover:border-emerald-500/30 transition-colors">
@@ -211,13 +218,13 @@ export const DashboardObjetivos = ({
               <div className="p-3 bg-amber-500/10 rounded-2xl border border-amber-500/20">
                 <TrendingUp className="w-6 h-6 text-amber-400" />
               </div>
-              <h4 className="text-sm font-black uppercase tracking-widest text-neutral-300">Proyección de Cierre</h4>
+              <h4 className="text-sm font-black uppercase tracking-widest text-neutral-300">Proyección Cierre</h4>
             </div>
             <p className="text-4xl font-black text-white mb-3 relative z-10" suppressHydrationWarning>
               {formatoMoneda.format(proyeccionCierre)}
             </p>
             <p className={`text-xs font-black uppercase tracking-widest relative z-10 ${proyeccionCierre >= currentData.meta ? 'text-emerald-400' : 'text-amber-400'}`}>
-              {proyeccionCierre >= currentData.meta ? 'Superando Meta' : 'Por Debajo de Meta'}
+              {proyeccionCierre >= currentData.meta ? 'Superando Meta' : 'Por Debajo Meta'}
             </p>
           </div>
         </div>
