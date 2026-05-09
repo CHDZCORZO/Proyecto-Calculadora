@@ -1,9 +1,9 @@
-export type TipoProducto = 
-  | 'Nuevo' 
-  | 'Segunda disposición' 
-  | 'CNCA' 
-  | 'Intercompañía' 
-  | 'CNCA Interno' 
+export type TipoProducto =
+  | 'Nuevo'
+  | 'Segunda disposición'
+  | 'CNCA'
+  | 'Intercompañía'
+  | 'CNCA Interno'
   | 'LCOM TERCEROS';
 
 export interface CreditoALiquidar {
@@ -48,13 +48,13 @@ export function calcularOfertas(
   creditosALiquidar: CreditoALiquidar[],
   ofertasDisponibles: CotizadorData[]
 ): CotizadorData[] {
-  
+
   return ofertasDisponibles.filter((oferta) => {
-    
+
     // =========================================================================
     // 2. REGLA UNIVERSAL (Aplica a todo)
     // =========================================================================
-    
+
     // Diferencial Neto: (Monto_Bruto_Oferta - Suma_Saldos_Liquidar) >= $5,000
     const sumaSaldos = creditosALiquidar.reduce((sum, c) => sum + c.saldo, 0);
     const diferencialNeto = oferta.monto_bruto - sumaSaldos;
@@ -77,7 +77,7 @@ export function calcularOfertas(
     // 3. VALIDACIÓN DE MEJORA DE CONDICIONES (Por crédito individual)
     // =========================================================================
     const requiereMejora = ['CNCA', 'Intercompañía', 'LCOM TERCEROS'].includes(tipoProducto);
-    
+
     if (requiereMejora && creditosALiquidar.length > 0) {
       // Debe cumplirse para CADA crédito a liquidar
       const mejoraCumplida = creditosALiquidar.every((credito) => {
@@ -127,27 +127,27 @@ export function calcularOfertas(
 
         // A. Marca OPCIPRES
         if (marcaOferta === 'OPCIPRES') {
-          const regla1 = tasaOferta <= 2.57;
-          const regla2 = pagos >= 16 && tasaOferta <= 2.66;
+          const regla1 = credito.tasa <= 2.57;
+          const regla2 = pagos >= 16 && credito.tasa <= 2.64;
           const regla4 = cumpleIncrementoPlazo(plazoActual, plazoNuevo);
-          const regla3Condicion = capacidadDisponible >= 750 && tasaOferta <= 2.66;
+          const regla3Condicion = capacidadDisponible >= 750 && credito.tasa <= 2.64;
 
           // Priorizamos reglas que no consumen capacidad
           if (regla1 || regla2 || regla4) {
             cumpleReglaIndividual = true;
-          } 
+          }
           // Si es estrictamente necesario, usamos el consumo de capacidad (Token)
           else if (regla3Condicion) {
             cumpleReglaIndividual = true;
             capacidadDisponible -= 750; // Al usar esta regla, resta de la capacidad
           }
-        } 
+        }
         // B. Marca CONSUBANCO
         else if (marcaOferta === 'CONSUBANCO') {
-          const regla1 = tasaOferta <= 2.40;
-          const regla2 = pagos >= 16 && tasaOferta <= 2.57;
+          const regla1 = credito.tasa <= 2.40;
+          const regla2 = pagos >= 16 && credito.tasa <= 2.57;
           const regla4 = cumpleIncrementoPlazo(plazoActual, plazoNuevo);
-          const regla3Condicion = capacidadDisponible >= 1000 && tasaOferta <= 2.57;
+          const regla3Condicion = capacidadDisponible >= 1000 && credito.tasa <= 2.57;
 
           if (regla1 || regla2 || regla4) {
             cumpleReglaIndividual = true;

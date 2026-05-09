@@ -13,7 +13,8 @@ import {
   ShieldCheck,
   Target,
   User,
-  Trash2
+  Trash2,
+  Settings2
 } from 'lucide-react';
 import Link from 'next/link';
 import { DayPicker } from 'react-day-picker';
@@ -58,6 +59,40 @@ export default function AdminPage() {
   // ----------------------------------------------------
   const [usersList, setUsersList] = useState<any[]>([]);
   const [userMsg, setUserMsg] = useState('');
+
+  // ----------------------------------------------------
+  // ESTADOS DE REGLAS DE COTIZADOR
+  // ----------------------------------------------------
+  const [reglasCotizador, setReglasCotizador] = useState<any[]>([]);
+  const [guardandoReglas, setGuardandoReglas] = useState(false);
+  const [reglasMsg, setReglasMsg] = useState('');
+
+  const fetchReglasCotizador = async () => {
+    const { data } = await supabase.from('reglas_cotizador').select('*').order('marca');
+    if (data) setReglasCotizador(data);
+  };
+
+  const guardarReglas = async () => {
+    setGuardandoReglas(true);
+    setReglasMsg('');
+    try {
+      const { error } = await supabase.from('reglas_cotizador').upsert(
+        reglasCotizador.map(r => ({
+          id: r.id,
+          marca: r.marca,
+          regla_key: r.regla_key,
+          regla_value: r.regla_value,
+          descripcion: r.descripcion
+        }))
+      );
+      if (error) throw error;
+      setReglasMsg('Reglas guardadas correctamente.');
+      setTimeout(() => setReglasMsg(''), 3000);
+    } catch (err: any) {
+      setReglasMsg(`Error: ${err.message}`);
+    }
+    setGuardandoReglas(false);
+  };
 
   const fetchUsers = async () => {
     const users = await getUsersList();
@@ -114,6 +149,7 @@ export default function AdminPage() {
     if (isClient) {
       fetchArchivos();
       fetchUsers();
+      fetchReglasCotizador();
     }
   }, [isClient]);
 
@@ -933,6 +969,62 @@ export default function AdminPage() {
                )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* CONFIGURACIÓN DE REGLAS DEL COTIZADOR */}
+      <div className="max-w-4xl mx-auto bg-neutral-900 border border-neutral-800 rounded-[2.5rem] p-10 shadow-2xl space-y-6 mb-12 relative overflow-hidden">
+        <div className="flex items-center justify-between relative z-10">
+          <div className="flex items-center gap-3">
+            <div className="bg-indigo-500/10 p-2 rounded-lg">
+              <Settings2 className="w-5 h-5 text-indigo-500" />
+            </div>
+            <h2 className="text-xl font-black uppercase tracking-tight">Reglas del Cotizador</h2>
+          </div>
+          <button 
+            onClick={guardarReglas}
+            disabled={guardandoReglas}
+            className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-black uppercase tracking-widest text-xs px-6 py-3 rounded-xl transition-all flex items-center gap-2"
+          >
+            {guardandoReglas ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Guardar Cambios
+          </button>
+        </div>
+        
+        {reglasMsg && (
+          <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 p-3 rounded-xl text-sm font-bold uppercase tracking-widest relative z-10 text-center">
+            {reglasMsg}
+          </div>
+        )}
+
+        <div className="space-y-8 relative z-10">
+          {Array.from(new Set(reglasCotizador.map(r => r.marca))).map(marca => (
+            <div key={marca} className="space-y-4">
+              <h3 className="text-sm font-black text-indigo-400 uppercase tracking-widest border-b border-neutral-800 pb-2">{marca}</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {reglasCotizador.filter(r => r.marca === marca).map((regla, idx) => (
+                  <div key={regla.id} className="bg-black/40 border border-neutral-800 rounded-xl p-4 flex flex-col justify-between">
+                    <div className="mb-3">
+                      <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">{regla.regla_key}</span>
+                      <p className="text-xs font-bold text-neutral-300 mt-1">{regla.descripcion}</p>
+                    </div>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={regla.regla_value}
+                      onChange={(e) => {
+                        const newReglas = [...reglasCotizador];
+                        const index = newReglas.findIndex(r => r.id === regla.id);
+                        newReglas[index].regla_value = e.target.value;
+                        setReglasCotizador(newReglas);
+                      }}
+                      className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm font-bold text-white transition-colors"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
