@@ -31,11 +31,11 @@ export function RankingSection() {
       // Fetch Ventas Detalle
       let query = supabase.from('ventas_detalle').select('*');
       if (filtroPeriodo === "Acumulado Anual") {
-         query = query.like('mes_ano', `${year}-%`);
+        query = query.like('mes_ano', `${year}-%`);
       } else {
-         query = query.eq('mes_ano', selectedMonth);
+        query = query.eq('mes_ano', selectedMonth);
       }
-      
+
       const { data: ventasData } = await query.limit(50000);
       if (ventasData) setRawVentas(ventasData);
       else setRawVentas([]);
@@ -53,7 +53,7 @@ export function RankingSection() {
       // Fetch Configuración Mensual
       // Si es acumulado anual, intentaremos sumar las metas de los meses? Por ahora tomamos la meta base del mes actual para simplificar.
       const { data: configData } = await supabase.from('config_metas').select('*').eq('mes_ano', selectedMonth).single();
-      
+
       if (configData) {
         setConfigMensual(configData);
       } else {
@@ -72,14 +72,14 @@ export function RankingSection() {
     const filtered = rawVentas.filter(venta => {
       // Filtro Producto
       if (filtroProducto !== "Todos" && venta.tipo_producto !== filtroProducto) return false;
-      
+
       // Filtro Sucursal
       if (filtroSucursal !== "Todas" && venta.sucursal !== filtroSucursal) return false;
 
       // Filtro Periodo
       if (filtroPeriodo === "Mes Completo" || filtroPeriodo === "Acumulado Anual") return true;
       if (!venta.fecha_venta) return true; // Fallback
-      
+
       const day = parseInt(venta.fecha_venta.split('-')[2], 10);
       if (filtroPeriodo === "Semana 1") return day >= 1 && day <= 7;
       if (filtroPeriodo === "Semana 2") return day >= 8 && day <= 14;
@@ -100,16 +100,21 @@ export function RankingSection() {
           sucursal: v.sucursal,
           supervisor: v.supervisor,
           tipo_producto: v.tipo_producto,
-          foliosSet: new Set()
+          foliosSet: new Set(),
+          foliosCNCASet: new Set()
         };
       }
       grouped[clave].monto_total += Number(v.monto);
       grouped[clave].foliosSet.add(v.id_sap_venta);
+      if (v.tipo_producto === "CNCA INTERNO") {
+        grouped[clave].foliosCNCASet.add(v.id_sap_venta);
+      }
     });
 
     const finalData = Object.values(grouped).map(g => ({
       ...g,
-      total_ventas: g.foliosSet.size
+      total_ventas: g.foliosSet.size,
+      total_cnca_interno: g.foliosCNCASet.size
     }));
 
     setDatosExcel(finalData);
@@ -248,6 +253,8 @@ export function RankingSection() {
                 const metaGlobalBase = configMensual.meta_mensual_base || 150000;
                 const metasIndividuales = configMensual.metas_individuales || {};
                 const fechasOperativas = configMensual.fechas_operativas || [];
+                
+                const maxCncaInterno = Math.max(...displayStaff.map(a => a.total_cnca_interno || 0), 0);
 
                 const diasOperativos = fechasOperativas.length > 0 ? fechasOperativas.length : 24;
 
@@ -263,7 +270,7 @@ export function RankingSection() {
                 return displayStaff.map((advisor, index) => {
                   const metaMensualBase = metasIndividuales[advisor.nombre?.toUpperCase()] || metaGlobalBase;
                   const metaAlDiaBase = diasOperativos > 0 ? (metaMensualBase / diasOperativos) * diasTranscurridos : 0;
-                  
+
                   const badges = [];
 
                   // Insignia de Fuego: Para el Top 3 del ranking
@@ -276,9 +283,14 @@ export function RankingSection() {
                     badges.push({ id: 'goal', iconName: 'target', label: 'Meta Cumplida' });
                   }
 
-                  // Insignia de Constancia: Si tiene más de 10 créditos (folios únicos)
-                  if (advisor.total_ventas >= 15) {
+                  // Insignia de Constancia: Si tiene más de 25 créditos (folios únicos)
+                  if (advisor.total_ventas >= 25) {
                     badges.push({ id: 'pro', iconName: 'heart', label: 'Asesor Pro' });
+                  }
+
+                  // Insignia Master CNCA INTERNO: Asesor con más folios únicos del producto "CNCA INTERNO"
+                  if (advisor.total_cnca_interno > 0 && advisor.total_cnca_interno === maxCncaInterno) {
+                    badges.push({ id: 'master_cnca', iconName: 'award', label: 'Master CNCA INTERNO' });
                   }
 
                   return (

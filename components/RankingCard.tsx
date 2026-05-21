@@ -1,6 +1,6 @@
 "use client";
 import React from 'react';
-import { Trophy, Flame, Target, Heart, CreditCard } from 'lucide-react';
+import { Trophy, Flame, Target, Heart, CreditCard, Award } from 'lucide-react';
 
 interface RankingCardProps {
   position: number; name: string; sucursal: string; supervisor: string;
@@ -133,6 +133,7 @@ export const RankingCard = ({
             {badge.iconName === 'flame' && <Flame className="w-5 h-5 text-orange-500 animate-pulse" />}
             {badge.iconName === 'target' && <Target className="w-5 h-5 text-indigo-400" />}
             {badge.iconName === 'heart' && <Heart className="w-5 h-5 text-red-500" />}
+            {badge.iconName === 'award' && <Award className="w-5 h-5 text-yellow-400" />}
           </div>
         ))}
       </div>
