@@ -3,11 +3,12 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { RankingSection } from '../components/RankingSection';
 import { CotizadorHerramientas } from '../components/CotizadorHerramientas';
-import { LayoutDashboard, Wrench } from 'lucide-react';
+import { ActualizacionIMSS } from '../components/ActualizacionIMSS';
+import { LayoutDashboard, Wrench, RefreshCw } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 
 export default function MainApp() {
-  const [activeTab, setActiveTab] = useState<'ranking' | 'herramientas'>('ranking');
+  const [activeTab, setActiveTab] = useState<'ranking' | 'herramientas' | 'actualizacion_imss'>('ranking');
   const [role, setRole] = useState<string | null>(null);
   const supabase = createClient();
 
@@ -45,6 +46,12 @@ export default function MainApp() {
             >
               <Wrench className="w-4 h-4" /> Herramientas
             </button>
+            <button 
+              onClick={() => setActiveTab('actualizacion_imss')}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${activeTab === 'actualizacion_imss' ? 'bg-indigo-600 text-white shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+            >
+              <RefreshCw className="w-4 h-4" /> Actualización IMSS
+            </button>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -66,8 +73,10 @@ export default function MainApp() {
       <div className="w-full">
         {activeTab === 'ranking' ? (
           <RankingSection />
-        ) : (
+        ) : activeTab === 'herramientas' ? (
           <CotizadorHerramientas />
+        ) : (
+          <ActualizacionIMSS />
         )}
       </div>
     </div>
