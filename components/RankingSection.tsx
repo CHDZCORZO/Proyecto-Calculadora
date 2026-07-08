@@ -28,17 +28,31 @@ export function RankingSection() {
       setIsDataLoaded(false);
       const year = selectedMonth.split('-')[0];
 
-      // Fetch Ventas Detalle
-      let query = supabase.from('ventas_detalle').select('*');
-      if (filtroPeriodo === "Acumulado Anual") {
-        query = query.like('mes_ano', `${year}-%`);
-      } else {
-        query = query.eq('mes_ano', selectedMonth);
+      // Fetch Ventas Detalle (con paginación para traer TODOS los registros)
+      let allVentas: any[] = [];
+      let from = 0;
+      const pageSize = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        let query = supabase.from('ventas_detalle').select('*');
+        if (filtroPeriodo === "Acumulado Anual") {
+          query = query.like('mes_ano', `${year}-%`);
+        } else {
+          query = query.eq('mes_ano', selectedMonth);
+        }
+        const { data: pageData } = await query.range(from, from + pageSize - 1);
+
+        if (pageData && pageData.length > 0) {
+          allVentas = allVentas.concat(pageData);
+          from += pageSize;
+          hasMore = pageData.length === pageSize;
+        } else {
+          hasMore = false;
+        }
       }
 
-      const { data: ventasData } = await query.limit(50000);
-      if (ventasData) setRawVentas(ventasData);
-      else setRawVentas([]);
+      setRawVentas(allVentas);
 
       // Fetch Fotos
       const { data: fotosData } = await supabase.from('asesores_meta').select('nombre, photo_url');
@@ -51,13 +65,55 @@ export function RankingSection() {
       }
 
       // Fetch Configuración Mensual
-      // Si es acumulado anual, intentaremos sumar las metas de los meses? Por ahora tomamos la meta base del mes actual para simplificar.
-      const { data: configData } = await supabase.from('config_metas').select('*').eq('mes_ano', selectedMonth).single();
+      if (filtroPeriodo === "Acumulado Anual") {
+        // Traer TODAS las config_metas del año y sumar las de los meses transcurridos
+        const currentMonth = selectedMonth.split('-')[1]; // "07" por ejemplo
+        const { data: allConfigData } = await supabase
+          .from('config_metas')
+          .select('*')
+          .like('mes_ano', `${year}-%`);
 
-      if (configData) {
-        setConfigMensual(configData);
+        if (allConfigData && allConfigData.length > 0) {
+          // Filtrar solo los meses que ya pasaron (desde 01 hasta el mes seleccionado inclusive)
+          const mesesTranscurridos = allConfigData.filter((c: any) => {
+            const mesConfig = c.mes_ano.split('-')[1];
+            return mesConfig <= currentMonth;
+          });
+
+          // Sumar meta_mensual_base de todos los meses transcurridos
+          const metaSumada = mesesTranscurridos.reduce((acc: number, c: any) => acc + (c.meta_mensual_base || 0), 0);
+
+          // Unir todas las fechas_operativas de los meses transcurridos
+          const todasFechas = mesesTranscurridos.reduce((acc: string[], c: any) => {
+            return acc.concat(c.fechas_operativas || []);
+          }, []);
+
+          // Sumar metas_individuales: por cada asesor, sumar las metas de todos los meses
+          const metasIndivSumadas: { [key: string]: number } = {};
+          mesesTranscurridos.forEach((c: any) => {
+            const metasIndiv = c.metas_individuales || {};
+            Object.keys(metasIndiv).forEach((nombre: string) => {
+              metasIndivSumadas[nombre] = (metasIndivSumadas[nombre] || 0) + metasIndiv[nombre];
+            });
+          });
+
+          setConfigMensual({
+            meta_mensual_base: metaSumada,
+            fechas_operativas: todasFechas,
+            metas_individuales: metasIndivSumadas,
+            _es_acumulado_anual: true,
+            _meses_con_config: mesesTranscurridos.length
+          });
+        } else {
+          setConfigMensual({});
+        }
       } else {
-        setConfigMensual({});
+        const { data: configData } = await supabase.from('config_metas').select('*').eq('mes_ano', selectedMonth).single();
+        if (configData) {
+          setConfigMensual(configData);
+        } else {
+          setConfigMensual({});
+        }
       }
 
       setIsDataLoaded(true);
@@ -105,9 +161,13 @@ export function RankingSection() {
         };
       }
       grouped[clave].monto_total += Number(v.monto);
-      grouped[clave].foliosSet.add(v.id_sap_venta);
+      // Para acumulado anual, usar clave compuesta mes_ano+folio para no deduplicar entre meses
+      const folioKey = filtroPeriodo === "Acumulado Anual" 
+        ? `${v.mes_ano}_${v.id_sap_venta}` 
+        : v.id_sap_venta;
+      grouped[clave].foliosSet.add(folioKey);
       if (v.tipo_producto === "CNCA INTERNO") {
-        grouped[clave].foliosCNCASet.add(v.id_sap_venta);
+        grouped[clave].foliosCNCASet.add(folioKey);
       }
     });
 

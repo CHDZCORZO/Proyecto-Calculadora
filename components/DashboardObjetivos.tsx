@@ -44,9 +44,17 @@ export const DashboardObjetivos = ({
     metaPeriodoBase = metaMensualBase / 4;
     diasOperacionPeriodo = Math.ceil(diasOperacionPeriodo / 4);
   } else if (filtroPeriodo === "Acumulado Anual") {
-    // Para el año, multiplicamos por 12
-    metaPeriodoBase = metaMensualBase * 12;
-    diasOperacionPeriodo = diasOperacionPeriodo * 12;
+    if (configMensual._es_acumulado_anual) {
+      // La meta y fechas_operativas ya vienen sumadas correctamente desde RankingSection
+      // metaMensualBase ya es la SUMA de todos los meses transcurridos
+      // fechasOperativas ya son TODAS las fechas operativas de los meses transcurridos
+      metaPeriodoBase = metaMensualBase;
+      diasOperacionPeriodo = fechasOperativas.length > 0 ? fechasOperativas.length : 24 * (configMensual._meses_con_config || 1);
+    } else {
+      // Fallback si no hay config acumulada
+      metaPeriodoBase = metaMensualBase * 12;
+      diasOperacionPeriodo = diasOperacionPeriodo * 12;
+    }
   }
 
   let diasTranscurridosPeriodo = 0;
@@ -54,20 +62,20 @@ export const DashboardObjetivos = ({
   if (isClient) {
     const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
     if (fechasOperativas.length > 0) {
-      // Filtrar fechas que ya pasaron (esto es para el mes actual)
+      // Filtrar fechas que ya pasaron
       diasTranscurridosPeriodo = fechasOperativas.filter((f: string) => f <= todayStr).length;
       
-      if (filtroPeriodo === "Acumulado Anual") {
-        // Estimación rápida de días transcurridos en el año
+      if (filtroPeriodo === "Acumulado Anual" && !configMensual._es_acumulado_anual) {
+        // Fallback: Estimación rápida de días transcurridos en el año (solo si no hay config acumulada real)
         const startOfYear = new Date(today.getFullYear(), 0, 1);
         const diffTime = Math.abs(today.getTime() - startOfYear.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        // Ajustamos asumiendo ~24 días por mes (quitar domingos)
         diasTranscurridosPeriodo = Math.min(Math.floor((diffDays / 7) * 6), diasOperacionPeriodo);
-      } else if (filtroPeriodo !== "Mes Completo") {
+      } else if (filtroPeriodo !== "Mes Completo" && filtroPeriodo !== "Acumulado Anual") {
          // Ajuste proporcional para semana
          diasTranscurridosPeriodo = Math.min(diasTranscurridosPeriodo, diasOperacionPeriodo);
       }
+      // Si es Acumulado Anual CON _es_acumulado_anual, el filtro de fechas <= todayStr ya es correcto
     } else {
       if (filtroPeriodo === "Acumulado Anual") {
         const startOfYear = new Date(today.getFullYear(), 0, 1);
