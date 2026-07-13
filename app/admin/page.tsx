@@ -66,6 +66,7 @@ export default function AdminPage() {
   const [reglasCotizador, setReglasCotizador] = useState<any[]>([]);
   const [guardandoReglas, setGuardandoReglas] = useState(false);
   const [reglasMsg, setReglasMsg] = useState('');
+  const [uploadPadronStatus, setUploadPadronStatus] = useState<{msg: string, type: 'idle' | 'loading' | 'success' | 'error'}>({ msg: '', type: 'idle' });
 
   const fetchReglasCotizador = async () => {
     const { data } = await supabase.from('reglas_cotizador').select('*').order('marca');
@@ -155,6 +156,12 @@ export default function AdminPage() {
 
   const eliminarArchivo = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este archivo? Se borrarán todas sus ofertas asociadas.')) return;
+    await supabase.from('archivos_cargados').delete().eq('id', id);
+    fetchArchivos();
+  };
+
+  const eliminarPadron = async (id: string) => {
+    if (!confirm('¿Estás seguro de eliminar este archivo? Se borrarán todos los registros del padrón IMSS.')) return;
     await supabase.from('archivos_cargados').delete().eq('id', id);
     fetchArchivos();
   };
@@ -447,6 +454,99 @@ export default function AdminPage() {
     }
   };
 
+  const procesarPadronImss = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadPadronStatus({ msg: 'Procesando padrón de clientes IMSS...', type: 'loading' });
+
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const reader = new FileReader();
+
+      reader.onload = async (event) => {
+        const buffer = event.target?.result as ArrayBuffer;
+        await workbook.xlsx.load(buffer);
+
+        const worksheet = workbook.getWorksheet(1);
+        const filasAInsertarRaw: any[] = [];
+
+        if (worksheet) {
+          worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber > 1) { // Saltar encabezados
+              const nombre = row.getCell(1).value?.toString()?.trim() || "";
+              const apellido_paterno = row.getCell(2).value?.toString()?.trim() || "";
+              const apellido_materno = row.getCell(3).value?.toString()?.trim() || "";
+              const curp = row.getCell(4).value?.toString()?.trim() || "";
+              const rfc = row.getCell(5).value?.toString()?.trim() || "";
+              const correo = row.getCell(6).value?.toString()?.trim() || "";
+              const tipo_cliente = row.getCell(7).value?.toString()?.trim() || "";
+
+              if (nombre && curp) {
+                filasAInsertarRaw.push({
+                  nombre,
+                  apellido_paterno,
+                  apellido_materno,
+                  curp: curp.toUpperCase(),
+                  rfc: rfc.toUpperCase(),
+                  correo,
+                  tipo_cliente
+                });
+              }
+            }
+          });
+
+          // 1. Borramos el padrón anterior en archivos_cargados (borra padron_imss en cascada)
+          const { error: errorClean } = await supabase
+            .from('archivos_cargados')
+            .delete()
+            .eq('marca', 'IMSS')
+            .eq('tramite', 'PADRON');
+
+          if (errorClean) throw errorClean;
+
+          // 2. Registrar el nuevo archivo en la base de datos
+          const { data: archivoNuevo, error: errorArchivo } = await supabase
+            .from('archivos_cargados')
+            .insert({
+              nombre: file.name,
+              marca: 'IMSS',
+              tramite: 'PADRON'
+            })
+            .select()
+            .single();
+
+          if (errorArchivo || !archivoNuevo) {
+            throw new Error('Error al registrar el archivo de padrón');
+          }
+
+          // 3. Asignar archivo_id
+          const filasConArchivo = filasAInsertarRaw.map(f => ({ ...f, archivo_id: archivoNuevo.id }));
+
+          // 4. Insertamos en chunks de 1000
+          const chunkSize = 1000;
+          for (let i = 0; i < filasConArchivo.length; i += chunkSize) {
+            const chunk = filasConArchivo.slice(i, i + chunkSize);
+            const { error: errorInsert } = await supabase.from('padron_imss').insert(chunk);
+            if (errorInsert) throw errorInsert;
+          }
+
+          setUploadPadronStatus({
+            msg: `¡Éxito! ${filasConArchivo.length} registros del padrón cargados correctamente.`,
+            type: 'success'
+          });
+
+          fetchArchivos();
+        }
+      };
+
+      reader.readAsArrayBuffer(file);
+    } catch (error: any) {
+      console.error(error);
+      setUploadPadronStatus({ msg: `Error al subir el padrón: ${error.message || error}`, type: 'error' });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-indigo-500/30">
       {/* Barra Superior de Navegación */}
@@ -662,11 +762,11 @@ export default function AdminPage() {
         {/* LISTA DE ARCHIVOS CARGADOS */}
         <div className="mt-8 pt-8 border-t border-neutral-800">
           <h3 className="text-sm font-black text-neutral-500 uppercase tracking-widest mb-6">Archivos Activos en Base de Datos</h3>
-          {archivosCargados.length === 0 ? (
+          {archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON').length === 0 ? (
             <p className="text-xs font-bold text-neutral-600 uppercase text-center py-4 bg-black/20 rounded-xl border border-neutral-800">No hay tablas cargadas actualmente</p>
           ) : (
             <div className="space-y-3">
-              {archivosCargados.map(archivo => (
+              {archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON').map(archivo => (
                 <div key={archivo.id} className="bg-black/40 border border-neutral-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-neutral-700 transition-colors">
                   <div>
                     <p className="text-sm font-black text-white">{archivo.nombre}</p>
@@ -683,6 +783,86 @@ export default function AdminPage() {
                       onClick={() => eliminarArchivo(archivo.id)}
                       className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 p-2 rounded-xl transition-colors"
                       title="Eliminar este archivo y todas sus ofertas"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CARGA DEL PADRÓN IMSS */}
+      <div className="max-w-4xl mx-auto bg-neutral-900 border border-neutral-800 rounded-[2.5rem] p-10 shadow-2xl space-y-8 mb-8">
+        <div className="flex items-center gap-3 border-b border-neutral-800 pb-6">
+          <div className="bg-indigo-500/10 p-2 rounded-lg">
+            <Upload className="w-5 h-5 text-indigo-500" />
+          </div>
+          <h2 className="text-xl font-black uppercase tracking-tight">Cargar Padrón IMSS</h2>
+        </div>
+
+        <div className="relative group max-w-xl mx-auto">
+          <input
+            type="file"
+            accept=".xlsx"
+            onChange={procesarPadronImss}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+          />
+          <div className={`
+            border-2 border-dashed rounded-3xl p-12 text-center transition-all duration-300
+            ${uploadPadronStatus.type === 'loading'
+              ? 'border-indigo-500 bg-indigo-500/5 ring-4 ring-indigo-500/10'
+              : 'border-neutral-800 group-hover:border-neutral-700 bg-black/40 group-hover:bg-black/60'}
+          `}>
+            {uploadPadronStatus.type === 'loading' ? (
+              <Loader2 className="w-12 h-12 text-indigo-500 animate-spin mx-auto mb-4" />
+            ) : (
+              <div className="bg-neutral-800 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-500">
+                <FileSpreadsheet className="w-8 h-8 text-neutral-400 group-hover:text-indigo-400" />
+              </div>
+            )}
+            <h3 className="text-lg font-black uppercase tracking-tight">Subir Excel Padrón IMSS</h3>
+            <p className="text-xs text-neutral-500 mt-2">
+              El archivo debe tener las columnas: Nombre, Apellido Paterno, Apellido Materno, CURP, RFC (10 dígitos), Correo, Tipo de Cliente.
+            </p>
+          </div>
+        </div>
+
+        {uploadPadronStatus.type !== 'idle' && (
+          <div className={`flex items-center gap-4 p-4 rounded-2xl border ${
+            uploadPadronStatus.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' :
+            uploadPadronStatus.type === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' :
+            'bg-indigo-500/10 border-indigo-500/20 text-indigo-400'
+          }`}>
+            <p className="text-sm font-bold uppercase tracking-wider">{uploadPadronStatus.msg}</p>
+          </div>
+        )}
+
+        {/* LISTA DE ARCHIVOS DEL PADRÓN */}
+        <div className="mt-8 pt-8 border-t border-neutral-800">
+          <h3 className="text-sm font-black text-neutral-500 uppercase tracking-widest mb-6">Padrón Activo</h3>
+          {archivosCargados.filter(a => a.marca === 'IMSS' && a.tramite === 'PADRON').length === 0 ? (
+            <p className="text-xs font-bold text-neutral-600 uppercase text-center py-4 bg-black/20 rounded-xl border border-neutral-800">No hay un padrón cargado actualmente</p>
+          ) : (
+            <div className="space-y-3">
+              {archivosCargados.filter(a => a.marca === 'IMSS' && a.tramite === 'PADRON').map(archivo => (
+                <div key={archivo.id} className="bg-black/40 border border-neutral-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-neutral-700 transition-colors">
+                  <div>
+                    <p className="text-sm font-black text-white">{archivo.nombre}</p>
+                    <div className="flex gap-2 mt-1">
+                      <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded uppercase tracking-widest">Padrón IMSS</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs font-bold text-neutral-600">
+                      {new Date(archivo.fecha_carga).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                    <button 
+                      onClick={() => eliminarPadron(archivo.id)}
+                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 p-2 rounded-xl transition-colors"
+                      title="Eliminar padrón de la base de datos"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

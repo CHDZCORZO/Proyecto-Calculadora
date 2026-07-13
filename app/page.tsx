@@ -4,11 +4,15 @@ import Link from 'next/link';
 import { RankingSection } from '../components/RankingSection';
 import { CotizadorHerramientas } from '../components/CotizadorHerramientas';
 import { ActualizacionIMSS } from '../components/ActualizacionIMSS';
-import { LayoutDashboard, Wrench, RefreshCw } from 'lucide-react';
+import { CorreosIMSS } from '../components/CorreosIMSS';
+import { ConsultaIMSS } from '../components/ConsultaIMSS';
+import { LayoutDashboard, Wrench, RefreshCw, Mail, Search } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 
 export default function MainApp() {
-  const [activeTab, setActiveTab] = useState<'ranking' | 'herramientas' | 'actualizacion_imss'>('ranking');
+  const [activeTab, setActiveTab] = useState<'ranking' | 'herramientas' | 'actualizacion_imss' | 'correos_imss' | 'consulta_imss'>('ranking');
+  const [prefillNombre, setPrefillNombre] = useState<string>('');
+  const [prefillCorreo, setPrefillCorreo] = useState<string>('');
   const [role, setRole] = useState<string | null>(null);
   const supabase = createClient();
 
@@ -52,6 +56,18 @@ export default function MainApp() {
             >
               <RefreshCw className="w-4 h-4" /> Actualización IMSS
             </button>
+            <button 
+              onClick={() => setActiveTab('correos_imss')}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${activeTab === 'correos_imss' ? 'bg-indigo-600 text-white shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+            >
+              <Mail className="w-4 h-4" /> Estatus Firmas
+            </button>
+            <button 
+              onClick={() => setActiveTab('consulta_imss')}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-xs font-black uppercase transition-all ${activeTab === 'consulta_imss' ? 'bg-indigo-600 text-white shadow-lg' : 'text-neutral-500 hover:text-white'}`}
+            >
+              <Search className="w-4 h-4" /> Consulta IMSS
+            </button>
           </nav>
 
           <div className="flex items-center gap-4">
@@ -75,8 +91,25 @@ export default function MainApp() {
           <RankingSection />
         ) : activeTab === 'herramientas' ? (
           <CotizadorHerramientas />
+        ) : activeTab === 'actualizacion_imss' ? (
+          <ActualizacionIMSS 
+            prefilledNombre={prefillNombre}
+            prefilledCorreoAnterior={prefillCorreo}
+            onClearPrefill={() => {
+              setPrefillNombre('');
+              setPrefillCorreo('');
+            }}
+          />
+        ) : activeTab === 'correos_imss' ? (
+          <CorreosIMSS />
         ) : (
-          <ActualizacionIMSS />
+          <ConsultaIMSS 
+            onStartActualizacion={(nombre, correo) => {
+              setPrefillNombre(nombre);
+              setPrefillCorreo(correo);
+              setActiveTab('actualizacion_imss');
+            }}
+          />
         )}
       </div>
     </div>

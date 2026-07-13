@@ -1,10 +1,16 @@
 "use client";
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PDFDocument, rgb } from 'pdf-lib';
 import { FileUp, Loader2, Link as LinkIcon, CheckCircle2 } from 'lucide-react';
 import { createClient } from '../utils/supabase/client';
 
-export function ActualizacionIMSS() {
+interface ActualizacionIMSSProps {
+  prefilledNombre?: string;
+  prefilledCorreoAnterior?: string;
+  onClearPrefill?: () => void;
+}
+
+export function ActualizacionIMSS({ prefilledNombre, prefilledCorreoAnterior, onClearPrefill }: ActualizacionIMSSProps) {
   const [marca, setMarca] = useState("CSB");
   const [fecha, setFecha] = useState("");
   const [nombre, setNombre] = useState("");
@@ -15,6 +21,14 @@ export function ActualizacionIMSS() {
   const [error, setError] = useState("");
   const [signatureLink, setSignatureLink] = useState("");
   const supabase = createClient();
+
+  useEffect(() => {
+    if (prefilledNombre) setNombre(prefilledNombre);
+    if (prefilledCorreoAnterior) setCorreoAnterior(prefilledCorreoAnterior);
+    if (prefilledNombre || prefilledCorreoAnterior) {
+      if (onClearPrefill) onClearPrefill();
+    }
+  }, [prefilledNombre, prefilledCorreoAnterior, onClearPrefill]);
 
   const handleNssChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, '').slice(0, 11);
@@ -95,13 +109,17 @@ export function ActualizacionIMSS() {
 
       if (uploadError) throw uploadError;
 
+      // Obtener usuario actual para asociar el registro
+      const { data: { user } } = await supabase.auth.getUser();
+
       // Crear el registro de firma en la base de datos
       const { data: firmaData, error: dbError } = await supabase
         .from('imss_firmas')
         .insert([{
           file_path: filePath,
           nss: nss,
-          status: 'pendiente'
+          status: 'pendiente',
+          created_by: user?.id
         }])
         .select('token')
         .single();
