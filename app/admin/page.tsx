@@ -156,14 +156,36 @@ export default function AdminPage() {
 
   const eliminarArchivo = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este archivo? Se borrarán todas sus ofertas asociadas.')) return;
-    await supabase.from('archivos_cargados').delete().eq('id', id);
-    fetchArchivos();
+    try {
+      const { error } = await supabase.from('archivos_cargados').delete().eq('id', id);
+      if (error) {
+        console.error("Error al eliminar archivo:", error);
+        alert("Error al eliminar archivo: " + error.message);
+      } else {
+        alert("Archivo y sus ofertas asociadas eliminados correctamente.");
+        fetchArchivos();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Error inesperado: " + err.message);
+    }
   };
 
   const eliminarPadron = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este archivo? Se borrarán todos los registros del padrón IMSS.')) return;
-    await supabase.from('archivos_cargados').delete().eq('id', id);
-    fetchArchivos();
+    try {
+      const { error } = await supabase.from('archivos_cargados').delete().eq('id', id);
+      if (error) {
+        console.error("Error al eliminar padrón:", error);
+        alert("Error al eliminar padrón: " + error.message);
+      } else {
+        alert("Padrón IMSS y todos sus registros eliminados correctamente.");
+        fetchArchivos();
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert("Error inesperado: " + err.message);
+    }
   };
 
   useEffect(() => {

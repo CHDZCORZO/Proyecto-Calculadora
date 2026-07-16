@@ -60,11 +60,11 @@ export function ConsultaIMSS({ onStartActualizacion }: ConsultaIMSSProps) {
         .from('padron_imss')
         .select('*')
         .or(`curp.eq.${term},rfc.eq.${term}`)
-        .maybeSingle();
+        .limit(1);
 
       if (dbError) throw dbError;
 
-      setRecord(data || null);
+      setRecord(data && data.length > 0 ? data[0] : null);
       setSearched(true);
     } catch (err: any) {
       console.error(err);
