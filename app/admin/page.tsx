@@ -174,7 +174,7 @@ export default function AdminPage() {
   const eliminarPadron = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este archivo? Se borrarán todos los registros del padrón IMSS.')) return;
     try {
-      const { error } = await supabase.from('archivos_cargados').delete().eq('id', id);
+      const { error } = await supabase.rpc('eliminar_padron_imss', { p_id: id });
       if (error) {
         console.error("Error al eliminar padrón:", error);
         alert("Error al eliminar padrón: " + error.message);
@@ -518,12 +518,8 @@ export default function AdminPage() {
             }
           });
 
-          // 1. Borramos el padrón anterior en archivos_cargados (borra padron_imss en cascada)
-          const { error: errorClean } = await supabase
-            .from('archivos_cargados')
-            .delete()
-            .eq('marca', 'IMSS')
-            .eq('tramite', 'PADRON');
+          // 1. Borramos el padrón anterior usando la función RPC para evitar timeouts de API
+          const { error: errorClean } = await supabase.rpc('limpiar_padron_imss');
 
           if (errorClean) throw errorClean;
 
