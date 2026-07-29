@@ -8,6 +8,32 @@ import { useAppStore } from '../hooks/useAppStore';
 import { Filter, Trophy as TrophyIcon, LayoutDashboard, Loader2, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
+// Helper para buscar coincidencia difusa en un mapa (por ejemplo, "ANA DIAZ" -> "DIAZ TORRES ANA MARIA")
+const obtenerValorDifuso = <T,>(nombreAsesor: string, mapa: { [key: string]: T }, valorDefecto: T): T => {
+  if (!nombreAsesor) return valorDefecto;
+  const nombreUpper = nombreAsesor.toUpperCase().trim();
+  
+  // 1. Coincidencia exacta
+  if (mapa[nombreUpper] !== undefined) {
+    return mapa[nombreUpper];
+  }
+
+  // 2. Coincidencia difusa de palabras significativas
+  const palabrasAsesor = nombreUpper.split(/\s+/).filter(p => p.length > 2);
+  if (palabrasAsesor.length === 0) return valorDefecto;
+
+  for (const [key, valor] of Object.entries(mapa)) {
+    const keyUpper = key.toUpperCase();
+    // Si todas las palabras significativas del asesor están presentes en la clave
+    const todasCoinciden = palabrasAsesor.every(palabra => keyUpper.includes(palabra));
+    if (todasCoinciden) {
+      return valor;
+    }
+  }
+
+  return valorDefecto;
+};
+
 export function RankingSection() {
   const [rawVentas, setRawVentas] = useState<any[]>([]);
   const [datosExcel, setDatosExcel] = useState<any[]>([]);
@@ -204,7 +230,7 @@ export function RankingSection() {
         ...advisor,
         performanceScore: scoreMonto + scoreFolios,
         // BUSCAMOS LA FOTO AQUÍ:
-        photoUrl: fotosGuardadas[advisor.nombre?.toUpperCase()] || null
+        photoUrl: obtenerValorDifuso(advisor.nombre, fotosGuardadas, null)
       };
     })
     .sort((a, b) => b.performanceScore - a.performanceScore); // El Ranking ahora es por Score
@@ -328,7 +354,8 @@ export function RankingSection() {
                 }
 
                 return displayStaff.map((advisor, index) => {
-                  const metaMensualBase = metasIndividuales[advisor.nombre?.toUpperCase()] || metaGlobalBase;
+                  // Buscamos la meta individual con soporte para coincidencia difusa de nombres
+                  const metaMensualBase = obtenerValorDifuso(advisor.nombre, metasIndividuales, metaGlobalBase);
                   const metaAlDiaBase = diasOperativos > 0 ? (metaMensualBase / diasOperativos) * diasTranscurridos : 0;
 
                   const badges = [];
