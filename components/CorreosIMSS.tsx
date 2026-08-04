@@ -242,7 +242,7 @@ export function CorreosIMSS() {
       const userId = key === 'sin_asesor' ? null : key;
       const u = usersList.find(user => user.id === userId);
       const email = u?.email || '';
-      const name = userId ? mapEmailToName(email) : 'Sin Asesor';
+      const name = userId ? (u?.nombre || mapEmailToName(email)) : 'Sin Asesor';
 
       // Agrupar por NSS para este asesor
       const nssGroups: { [nss: string]: string[] } = {};
@@ -520,7 +520,10 @@ export function CorreosIMSS() {
                         <td className="py-5 px-8 text-sm font-black text-white tracking-wider">{item.nss}</td>
                         {['Administrador', 'Gerente', 'Supervisor'].includes(userRole || '') && (
                           <td className="py-5 px-6 text-xs font-bold text-indigo-400">
-                            {mapEmailToName(usersList.find(u => u.id === item.created_by)?.email || '')}
+                            {(() => {
+                              const u = usersList.find(usr => usr.id === item.created_by);
+                              return u ? (u.nombre || mapEmailToName(u.email)) : 'Sin Asesor';
+                            })()}
                           </td>
                         )}
                         <td className="py-5 px-6 text-xs font-bold text-neutral-400">{formatearFecha(item.created_at)}</td>
@@ -613,7 +616,10 @@ export function CorreosIMSS() {
                         <div>
                           <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Asesor</p>
                           <p className="text-xs font-bold text-indigo-400 mt-0.5">
-                            {mapEmailToName(usersList.find(u => u.id === item.created_by)?.email || '')}
+                            {(() => {
+                              const u = usersList.find(usr => usr.id === item.created_by);
+                              return u ? (u.nombre || mapEmailToName(u.email)) : 'Sin Asesor';
+                            })()}
                           </p>
                         </div>
                       )}
