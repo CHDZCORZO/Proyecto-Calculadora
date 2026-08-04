@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -27,6 +27,21 @@ export default function LoginPage() {
       setError('Credenciales incorrectas');
       setLoading(false);
       return;
+    }
+
+    if (signInData?.user) {
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('disabled')
+        .eq('id', signInData.user.id)
+        .single();
+
+      if (roleData?.disabled) {
+        await supabase.auth.signOut();
+        setError('Tu cuenta ha sido deshabilitada por el administrador');
+        setLoading(false);
+        return;
+      }
     }
 
     router.push('/');

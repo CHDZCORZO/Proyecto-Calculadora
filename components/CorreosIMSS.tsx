@@ -1,6 +1,7 @@
 "use client";
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { createClient } from '../utils/supabase/client';
+import { getUsersList } from '../app/actions/users';
 import { 
   Mail, 
   Search, 
@@ -24,14 +25,43 @@ interface ImssFirma {
   nss: string;
   status: string;
   created_at: string;
+  created_by: string | null;
 }
+
+// Mapeo manual de prefijos de correo a nombres legibles
+const mapEmailToName = (email: string) => {
+  if (!email) return "Sin Asesor";
+  const prefix = email.split('@')[0].toLowerCase();
+  const mappings: { [key: string]: string } = {
+    mruiz: "Fernanda Ruiz",
+    adiaz: "Ana Diaz",
+    xbernal: "Ximena Bernal",
+    yivarra: "Yamilet Ibarra",
+    khernandez: "Kathia Hernandez",
+    rlevario: "Rosa Levario",
+    lmarin: "Luis Marin",
+    egarcia: "Erick Garcia",
+    rcervantes: "Raul Cervantes",
+    amedina: "Axel Medina",
+    acruz: "Ana Cruz",
+    mlopez: "Massiel Lopez",
+    chernandez: "C. Hernandez",
+    emiranda: "E. Miranda",
+    ggil: "G. Gil",
+    rlopez: "R. Lopez",
+    gesquivel: "G. Esquivel"
+  };
+  return mappings[prefix] || prefix.toUpperCase();
+};
 
 export function CorreosIMSS() {
   const [data, setData] = useState<ImssFirma[]>([]);
+  const [usersList, setUsersList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("todos");
+  const [selectedMonth, setSelectedMonth] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -61,7 +91,15 @@ export function CorreosIMSS() {
       const userRole = roleData?.role;
       setUserRole(userRole || null);
 
-      // 3. Construir consulta filtrada
+      // 3. Obtener listado de usuarios para mapear asesores
+      try {
+        const users = await getUsersList();
+        setUsersList(users || []);
+      } catch (userErr) {
+        console.error("Error al obtener lista de usuarios:", userErr);
+      }
+
+      // 4. Construir consulta filtrada
       let query = supabase
         .from('imss_firmas')
         .select('*');
@@ -74,7 +112,7 @@ export function CorreosIMSS() {
       const { data: firmas, error: dbError } = await query.order('created_at', { ascending: false });
 
       if (dbError) throw dbError;
-      setData(firmas || []);
+      setData((firmas as ImssFirma[]) || []);
     } catch (err: any) {
       console.error(err);
       setError("Error al cargar los registros de estatus de firmas.");
@@ -143,22 +181,113 @@ export function CorreosIMSS() {
     }
   };
 
-  // Filtrado de datos
-  const filteredData = data.filter(item => {
-    const matchesSearch = item.nss.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          item.file_path.toLowerCase().includes(searchTerm.toLowerCase());
+  // Filtro de datos base para estadísticas y dashboard (sin aplicar filtro de estatus)
+  const dataFilteredForStats = useMemo(() => {
+    return data.filter(item => {
+      const matchesSearch = item.nss.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                            item.file_path.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesMonth = !selectedMonth || item.created_at.startsWith(selectedMonth);
+      return matchesSearch && matchesMonth;
+    });
+  }, [data, searchTerm, selectedMonth]);
+
+  // Estadísticas globales filtradas
+  const total = dataFilteredForStats.length;
+
+  // Clasificación de NSS únicos globales
+  const { nssUnicos, firmados, pendientes } = useMemo(() => {
+    // Agrupar estados por NSS
+    const nssGroups: { [nss: string]: string[] } = {};
+    dataFilteredForStats.forEach(d => {
+      if (!nssGroups[d.nss]) {
+        nssGroups[d.nss] = [];
+      }
+      nssGroups[d.nss].push(d.status);
+    });
+
+    let firmadosCount = 0;
+    let pendientesCount = 0;
+
+    Object.values(nssGroups).forEach(statuses => {
+      if (statuses.includes('firmado')) {
+        firmadosCount++;
+      } else {
+        pendientesCount++;
+      }
+    });
+
+    return {
+      nssUnicos: Object.keys(nssGroups).length,
+      firmados: firmadosCount,
+      pendientes: pendientesCount
+    };
+  }, [dataFilteredForStats]);
+
+  // Agrupación de estadísticas por asesor (calculadas por NSS únicos)
+  const advisorStats = useMemo(() => {
+    // 1. Agrupar solicitudes por asesor
+    const advisorGroups: { [key: string]: ImssFirma[] } = {};
     
-    const matchesStatus = statusFilter === 'todos' || 
-                          (statusFilter === 'firmados' && item.status === 'firmado') ||
-                          (statusFilter === 'pendientes' && item.status === 'pendiente');
+    dataFilteredForStats.forEach(item => {
+      const userId = item.created_by || null;
+      const key = userId || 'sin_asesor';
+      if (!advisorGroups[key]) {
+        advisorGroups[key] = [];
+      }
+      advisorGroups[key].push(item);
+    });
 
-    return matchesSearch && matchesStatus;
-  });
+    // 2. Calcular estadísticas por cada asesor
+    const stats = Object.entries(advisorGroups).map(([key, items]) => {
+      const userId = key === 'sin_asesor' ? null : key;
+      const u = usersList.find(user => user.id === userId);
+      const email = u?.email || '';
+      const name = userId ? mapEmailToName(email) : 'Sin Asesor';
 
-  // Estadísticas
-  const total = data.length;
-  const firmados = data.filter(d => d.status === 'firmado').length;
-  const pendientes = data.filter(d => d.status === 'pendiente').length;
+      // Agrupar por NSS para este asesor
+      const nssGroups: { [nss: string]: string[] } = {};
+      items.forEach(item => {
+        if (!nssGroups[item.nss]) {
+          nssGroups[item.nss] = [];
+        }
+        nssGroups[item.nss].push(item.status);
+      });
+
+      let firmadosUnicos = 0;
+      let pendientesUnicos = 0;
+
+      Object.values(nssGroups).forEach(statuses => {
+        if (statuses.includes('firmado')) {
+          firmadosUnicos++;
+        } else {
+          pendientesUnicos++;
+        }
+      });
+
+      return {
+        id: userId,
+        name,
+        email,
+        total: items.length, // total solicitudes
+        uniqueNssCount: Object.keys(nssGroups).length, // total NSS únicos
+        firmados: firmadosUnicos, // NSS únicos firmados
+        pendientes: pendientesUnicos // NSS únicos pendientes
+      };
+    });
+
+    return stats.sort((a, b) => b.total - a.total);
+  }, [dataFilteredForStats, usersList]);
+
+  // Filtrado de datos final para la lista (aplica estatus)
+  const filteredData = useMemo(() => {
+    return dataFilteredForStats.filter(item => {
+      const matchesStatus = statusFilter === 'todos' || 
+                            (statusFilter === 'firmados' && item.status === 'firmado') ||
+                            (statusFilter === 'pendientes' && item.status === 'pendiente');
+
+      return matchesStatus;
+    });
+  }, [dataFilteredForStats, statusFilter]);
 
   if (loading) {
     return (
@@ -197,13 +326,21 @@ export function CorreosIMSS() {
       </header>
 
       {/* ESTADÍSTICAS */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <div className="bg-neutral-900/40 backdrop-blur-sm rounded-3xl p-6 border border-neutral-700/30 flex flex-col justify-between hover:border-indigo-500/20 transition-all">
           <div className="flex justify-between items-center mb-4">
             <span className="text-xs font-black uppercase text-neutral-500 tracking-widest">Total Generados</span>
             <FileText className="w-5 h-5 text-indigo-400" />
           </div>
           <p className="text-4xl font-black text-white">{total}</p>
+        </div>
+
+        <div className="bg-neutral-900/40 backdrop-blur-sm rounded-3xl p-6 border border-neutral-700/30 flex flex-col justify-between hover:border-violet-500/20 transition-all">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-xs font-black uppercase text-neutral-500 tracking-widest">NSS Únicos</span>
+            <Search className="w-5 h-5 text-violet-400" />
+          </div>
+          <p className="text-4xl font-black text-violet-400">{nssUnicos}</p>
         </div>
 
         <div className="bg-neutral-900/40 backdrop-blur-sm rounded-3xl p-6 border border-neutral-700/30 flex flex-col justify-between hover:border-emerald-500/20 transition-all">
@@ -224,7 +361,7 @@ export function CorreosIMSS() {
       </section>
 
       {/* FILTROS Y CONTROLES */}
-      <section className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-neutral-900/30 p-6 rounded-3xl border border-neutral-800/80">
+      <section className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 bg-neutral-900/30 p-6 rounded-3xl border border-neutral-800/80">
         {/* BUSCADOR */}
         <div className="flex-1 max-w-md relative flex items-center">
           <Search className="w-5 h-5 text-neutral-500 absolute left-4 pointer-events-none" />
@@ -237,26 +374,109 @@ export function CorreosIMSS() {
           />
         </div>
 
-        {/* SELECT DE FILTRADO */}
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-black uppercase text-neutral-500 tracking-widest hidden sm:inline">Estatus:</span>
-          <div className="bg-neutral-900 p-1.5 rounded-2xl border border-neutral-800 flex gap-2">
-            {(['todos', 'firmados', 'pendientes'] as const).map((filter) => (
-              <button
-                key={filter}
-                onClick={() => setStatusFilter(filter)}
-                className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
-                  statusFilter === filter 
-                    ? 'bg-indigo-600 text-white shadow-lg' 
-                    : 'text-neutral-500 hover:text-white'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+        <div className="flex flex-wrap items-center gap-6">
+          {/* FILTRO DE FECHA (MES) */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase text-neutral-500 tracking-widest">Filtrar Mes:</span>
+            <div className="relative flex items-center bg-black/40 border border-neutral-800 rounded-2xl px-4 py-2.5">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="bg-transparent text-xs font-bold text-white outline-none [color-scheme:dark]"
+              />
+              {selectedMonth && (
+                <button 
+                  onClick={() => setSelectedMonth('')}
+                  className="ml-3 text-neutral-500 hover:text-white text-[10px] font-black uppercase tracking-wider"
+                >
+                  Todos
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SELECT DE FILTRADO */}
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-black uppercase text-neutral-500 tracking-widest hidden sm:inline">Estatus:</span>
+            <div className="bg-neutral-900 p-1.5 rounded-2xl border border-neutral-800 flex gap-2">
+              {(['todos', 'firmados', 'pendientes'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setStatusFilter(filter)}
+                  className={`px-4 py-2 rounded-xl text-xs font-black uppercase transition-all ${
+                    statusFilter === filter 
+                      ? 'bg-indigo-600 text-white shadow-lg' 
+                      : 'text-neutral-500 hover:text-white'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>
+
+      {/* DESGLOSE POR ASESOR */}
+      {['Administrador', 'Gerente', 'Supervisor'].includes(userRole || '') && advisorStats.length > 0 && (
+        <section className="space-y-6">
+          <h2 className="text-xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Solicitudes por Asesor
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {advisorStats.map((stat) => {
+              const porcentajeFirma = stat.uniqueNssCount > 0 ? Math.round((stat.firmados / stat.uniqueNssCount) * 100) : 0;
+              return (
+                <div 
+                  key={stat.id || 'sin_asesor'} 
+                  className="bg-neutral-900/20 backdrop-blur-sm rounded-[2rem] p-6 border border-neutral-800/80 hover:border-neutral-700/80 transition-all flex flex-col justify-between space-y-5 group animate-in fade-in slide-in-from-bottom-2 duration-500"
+                >
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-sm font-black text-white group-hover:text-indigo-400 transition-colors">{stat.name}</h3>
+                        <p className="text-[10px] text-neutral-500 font-bold mt-0.5">{stat.email || 'Sin correo registrado'}</p>
+                      </div>
+                      <span className="text-[10px] font-black uppercase tracking-wider bg-neutral-900 border border-neutral-800 text-neutral-400 px-3 py-1 rounded-xl">
+                        {stat.total} {stat.total === 1 ? 'solicitud' : 'solicitudes'}
+                      </span>
+                    </div>
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="bg-black/40 p-3 rounded-xl border border-neutral-800/40 text-center">
+                        <p className="text-[8px] font-black text-neutral-500 uppercase tracking-widest">NSS Únicos</p>
+                        <p className="text-base font-black text-white mt-1">{stat.uniqueNssCount}</p>
+                      </div>
+                      <div className="bg-emerald-500/5 p-3 rounded-xl border border-emerald-500/10 text-center">
+                        <p className="text-[8px] font-black text-emerald-500/60 uppercase tracking-widest">Firmados</p>
+                        <p className="text-base font-black text-emerald-400 mt-1">{stat.firmados}</p>
+                      </div>
+                      <div className="bg-amber-500/5 p-3 rounded-xl border border-amber-500/10 text-center">
+                        <p className="text-[8px] font-black text-amber-500/60 uppercase tracking-widest">Pendientes</p>
+                        <p className="text-base font-black text-amber-400 mt-1">{stat.pendientes}</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-[9px] font-black uppercase tracking-wider text-neutral-400">
+                      <span>Estatus Firmas</span>
+                      <span>{porcentajeFirma}% completado</span>
+                    </div>
+                    <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800/60">
+                      <div 
+                        className="bg-indigo-500 h-full rounded-full transition-all duration-500" 
+                        style={{ width: `${porcentajeFirma}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       {/* LISTADO DE REGISTROS */}
       {error && (
@@ -266,7 +486,10 @@ export function CorreosIMSS() {
         </div>
       )}
 
-      <section>
+      <section className="space-y-6">
+        <h2 className="text-xl font-black uppercase tracking-wider text-white flex items-center gap-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" /> Registro de Solicitudes
+        </h2>
         {filteredData.length > 0 ? (
           <div className="bg-neutral-900/20 rounded-[2.5rem] border border-neutral-800/80 overflow-hidden shadow-2xl">
             {/* Desktop Table View */}
@@ -275,6 +498,9 @@ export function CorreosIMSS() {
                 <thead>
                   <tr className="border-b border-neutral-800 bg-neutral-900/50">
                     <th className="py-5 px-8 text-xs font-black uppercase text-neutral-400 tracking-widest">NSS</th>
+                    {['Administrador', 'Gerente', 'Supervisor'].includes(userRole || '') && (
+                      <th className="py-5 px-6 text-xs font-black uppercase text-neutral-400 tracking-widest">Asesor</th>
+                    )}
                     <th className="py-5 px-6 text-xs font-black uppercase text-neutral-400 tracking-widest">Fecha Generación</th>
                     <th className="py-5 px-6 text-xs font-black uppercase text-neutral-400 tracking-widest text-center">Estatus</th>
                     <th className="py-5 px-6 text-xs font-black uppercase text-neutral-400 tracking-widest">Enlace de Firma</th>
@@ -292,6 +518,11 @@ export function CorreosIMSS() {
                     return (
                       <tr key={item.id} className="hover:bg-neutral-900/30 transition-colors">
                         <td className="py-5 px-8 text-sm font-black text-white tracking-wider">{item.nss}</td>
+                        {['Administrador', 'Gerente', 'Supervisor'].includes(userRole || '') && (
+                          <td className="py-5 px-6 text-xs font-bold text-indigo-400">
+                            {mapEmailToName(usersList.find(u => u.id === item.created_by)?.email || '')}
+                          </td>
+                        )}
                         <td className="py-5 px-6 text-xs font-bold text-neutral-400">{formatearFecha(item.created_at)}</td>
                         <td className="py-5 px-6 text-center">
                           <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -377,9 +608,19 @@ export function CorreosIMSS() {
                       </span>
                     </div>
 
-                    <div>
-                      <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Fecha Generación</p>
-                      <p className="text-xs font-bold text-neutral-300 mt-0.5">{formatearFecha(item.created_at)}</p>
+                    <div className="grid grid-cols-2 gap-4">
+                      {['Administrador', 'Gerente', 'Supervisor'].includes(userRole || '') && (
+                        <div>
+                          <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Asesor</p>
+                          <p className="text-xs font-bold text-indigo-400 mt-0.5">
+                            {mapEmailToName(usersList.find(u => u.id === item.created_by)?.email || '')}
+                          </p>
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">Fecha Generación</p>
+                        <p className="text-xs font-bold text-neutral-300 mt-0.5">{formatearFecha(item.created_at)}</p>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -441,3 +682,4 @@ export function CorreosIMSS() {
     </div>
   );
 }
+

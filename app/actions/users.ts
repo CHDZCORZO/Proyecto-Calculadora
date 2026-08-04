@@ -18,7 +18,7 @@ function getCleanServiceKey(): string | undefined {
   return match ? match[1] : key.trim().replace(/^["']|["']$/g, '');
 }
 
-export async function createUser(email: string, password: string, role: string) {
+export async function createUser(email: string, password: string, role: string, nombre: string) {
   const supabaseUrl = getCleanUrl();
   const supabaseServiceKey = getCleanServiceKey();
 
@@ -47,7 +47,7 @@ export async function createUser(email: string, password: string, role: string) 
     if (authData?.user) {
       const { error: roleError } = await supabaseAdmin
         .from('user_roles')
-        .insert({ id: authData.user.id, role: role });
+        .insert({ id: authData.user.id, role: role, nombre: nombre, disabled: false });
 
       if (roleError) {
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
@@ -80,15 +80,26 @@ export async function getUsersList() {
   const { data: rolesData } = await supabaseAdmin.from('user_roles').select('*');
   const rolesMap = new Map();
   if (rolesData) {
-    rolesData.forEach((r: any) => rolesMap.set(r.id, r.role));
+    rolesData.forEach((r: any) => {
+      rolesMap.set(r.id, {
+        role: r.role,
+        nombre: r.nombre,
+        disabled: r.disabled
+      });
+    });
   }
 
-  return usersData.users.map((u: any) => ({
-    id: u.id,
-    email: u.email,
-    role: rolesMap.get(u.id) || 'Asesor',
-    created_at: u.created_at
-  }));
+  return usersData.users.map((u: any) => {
+    const roleInfo = rolesMap.get(u.id) || { role: 'Asesor', nombre: '', disabled: false };
+    return {
+      id: u.id,
+      email: u.email,
+      role: roleInfo.role,
+      nombre: roleInfo.nombre || '',
+      disabled: !!roleInfo.disabled,
+      created_at: u.created_at
+    };
+  });
 }
 
 export async function deleteUserAccount(userId: string) {
@@ -107,3 +118,44 @@ export async function deleteUserAccount(userId: string) {
   }
   return { success: true };
 }
+
+export async function updateUserAccount(userId: string, updates: { role?: string, nombre?: string, disabled?: boolean, password?: string }) {
+  const supabaseUrl = getCleanUrl();
+  const supabaseServiceKey = getCleanServiceKey();
+  
+  if (!supabaseUrl || !supabaseServiceKey) return { success: false, error: 'Falta SUPABASE_SERVICE_ROLE_KEY' };
+  
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+
+  try {
+    // 1. Si viene password, actualizar en Supabase Auth
+    if (updates.password) {
+      const { error: authError } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: updates.password
+      });
+      if (authError) return { success: false, error: 'Error al cambiar contraseña: ' + authError.message };
+    }
+
+    // 2. Si viene role, nombre o disabled, actualizar en user_roles
+    const dbUpdates: any = {};
+    if (updates.role !== undefined) dbUpdates.role = updates.role;
+    if (updates.nombre !== undefined) dbUpdates.nombre = updates.nombre;
+    if (updates.disabled !== undefined) dbUpdates.disabled = updates.disabled;
+
+    if (Object.keys(dbUpdates).length > 0) {
+      const { error: dbError } = await supabaseAdmin
+        .from('user_roles')
+        .update(dbUpdates)
+        .eq('id', userId);
+
+      if (dbError) return { success: false, error: 'Error al actualizar base de datos: ' + dbError.message };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+

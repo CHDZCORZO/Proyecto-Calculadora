@@ -20,8 +20,15 @@ export default function MainApp() {
     async function fetchRole() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data } = await supabase.from('user_roles').select('role').eq('id', user.id).single();
-        if (data) setRole(data.role);
+        const { data } = await supabase.from('user_roles').select('role, disabled').eq('id', user.id).single();
+        if (data) {
+          if (data.disabled) {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+            return;
+          }
+          setRole(data.role);
+        }
       }
     }
     fetchRole();

@@ -22,7 +22,7 @@ import 'react-day-picker/dist/style.css';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createClient } from '../../utils/supabase/client';
-import { createUser, getUsersList, deleteUserAccount } from '../actions/users';
+import { createUser, getUsersList, deleteUserAccount, updateUserAccount } from '../actions/users';
 
 export default function AdminPage() {
   const supabase = createClient();
@@ -59,6 +59,59 @@ export default function AdminPage() {
   // ----------------------------------------------------
   const [usersList, setUsersList] = useState<any[]>([]);
   const [userMsg, setUserMsg] = useState('');
+
+  // Estados de edición de usuario
+  const [selectedUserToEdit, setSelectedUserToEdit] = useState<any | null>(null);
+  const [editNombre, setEditNombre] = useState('');
+  const [editRole, setEditRole] = useState('');
+  const [editDisabled, setEditDisabled] = useState(false);
+  const [editPassword, setEditPassword] = useState('');
+  const [editMsg, setEditMsg] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+
+  const openEditModal = (u: any) => {
+    setSelectedUserToEdit(u);
+    setEditNombre(u.nombre || '');
+    setEditRole(u.role || 'Asesor');
+    setEditDisabled(!!u.disabled);
+    setEditPassword('');
+    setEditMsg('');
+  };
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedUserToEdit) return;
+
+    setEditLoading(true);
+    setEditMsg('');
+
+    try {
+      const updates: any = {};
+      if (editNombre !== selectedUserToEdit.nombre) updates.nombre = editNombre;
+      if (editRole !== selectedUserToEdit.role) updates.role = editRole;
+      if (editDisabled !== selectedUserToEdit.disabled) updates.disabled = editDisabled;
+      if (editPassword) updates.password = editPassword;
+
+      if (Object.keys(updates).length === 0) {
+        setEditMsg('No hay cambios que guardar.');
+        setEditLoading(false);
+        return;
+      }
+
+      const res = await updateUserAccount(selectedUserToEdit.id, updates);
+      if (res.success) {
+        alert('Usuario actualizado correctamente.');
+        setSelectedUserToEdit(null);
+        fetchUsers();
+      } else {
+        setEditMsg(`Error: ${res.error}`);
+      }
+    } catch (err: any) {
+      setEditMsg(`Error: ${err.message}`);
+    } finally {
+      setEditLoading(false);
+    }
+  };
 
   // ----------------------------------------------------
   // ESTADOS DE REGLAS DE COTIZADOR
@@ -1109,8 +1162,9 @@ export default function AdminPage() {
                 const email = (form.elements.namedItem('email') as HTMLInputElement).value;
                 const password = (form.elements.namedItem('password') as HTMLInputElement).value;
                 const role = (form.elements.namedItem('role') as HTMLSelectElement).value;
+                const nombre = (form.elements.namedItem('nombre') as HTMLInputElement).value;
                 
-                const res = await createUser(email, password, role);
+                const res = await createUser(email, password, role, nombre);
                 if (res.success) {
                   setUserMsg('Usuario creado exitosamente');
                   form.reset();
@@ -1122,6 +1176,10 @@ export default function AdminPage() {
               className="space-y-4"
             >
               {userMsg && <p className="text-xs text-indigo-400 font-bold mb-4">{userMsg}</p>}
+              <div>
+                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Nombre Completo</label>
+                <input required name="nombre" type="text" placeholder="Ej: Juan Pérez" className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 text-sm font-bold text-white" />
+              </div>
               <div>
                 <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Correo</label>
                 <input required name="email" type="email" placeholder="correo@ejemplo.com" className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 text-sm font-bold text-white" />
@@ -1145,23 +1203,40 @@ export default function AdminPage() {
           
           <div>
             <h3 className="text-sm font-black text-neutral-500 uppercase tracking-widest mb-4">Usuarios Actuales</h3>
-            <div className="bg-black/40 border border-neutral-800 rounded-2xl p-4 h-64 overflow-y-auto space-y-2">
+            <div className="bg-black/40 border border-neutral-800 rounded-2xl p-4 h-96 overflow-y-auto space-y-2">
                {usersList.length === 0 ? (
                  <p className="text-xs text-neutral-400 text-center mt-10">Cargando usuarios...</p>
                ) : (
                  usersList.map((u: any) => (
-                   <div key={u.id} className="bg-neutral-900 border border-neutral-800 p-3 rounded-xl flex justify-between items-center group">
+                   <div key={u.id} className={`bg-neutral-900 border p-3 rounded-xl flex justify-between items-center group transition-all ${u.disabled ? 'border-red-950 bg-red-950/5 opacity-70' : 'border-neutral-800'}`}>
                      <div>
-                       <p className="text-sm font-bold text-white">{u.email}</p>
-                       <p className="text-[10px] text-neutral-500 uppercase tracking-widest mt-1">{u.role}</p>
+                       <div className="flex items-center gap-2">
+                         <p className="text-sm font-bold text-white">{u.nombre || 'Sin Nombre'}</p>
+                         {u.disabled && (
+                           <span className="text-[8px] font-black uppercase tracking-wider bg-red-500/10 text-red-400 border border-red-500/20 px-1.5 py-0.5 rounded">
+                             Inactivo
+                           </span>
+                         )}
+                       </div>
+                       <p className="text-[10px] text-neutral-500 font-bold mt-0.5">{u.email}</p>
+                       <p className="text-[9px] text-indigo-400 uppercase tracking-widest mt-1">{u.role}</p>
                      </div>
-                     <button
-                       onClick={() => deleteUser(u.id, u.email)}
-                       className="p-2 text-neutral-600 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all opacity-0 group-hover:opacity-100"
-                       title="Eliminar usuario"
-                     >
-                       <Trash2 className="w-4 h-4" />
-                     </button>
+                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                       <button
+                         onClick={() => openEditModal(u)}
+                         className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-all"
+                         title="Editar usuario"
+                       >
+                         <Settings2 className="w-4 h-4" />
+                       </button>
+                       <button
+                         onClick={() => deleteUser(u.id, u.email)}
+                         className="p-2 text-neutral-500 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                         title="Eliminar usuario"
+                       >
+                         <Trash2 className="w-4 h-4" />
+                       </button>
+                     </div>
                    </div>
                  ))
                )}
@@ -1169,6 +1244,101 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {/* MODAL DE EDICIÓN DE USUARIO */}
+      {selectedUserToEdit && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl relative space-y-6">
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-4">
+              <h3 className="text-lg font-black uppercase tracking-tight text-white">Editar Usuario</h3>
+              <button 
+                onClick={() => setSelectedUserToEdit(null)}
+                className="text-neutral-500 hover:text-white text-xs font-black uppercase tracking-wider"
+              >
+                Cerrar
+              </button>
+            </div>
+            
+            <form onSubmit={handleUpdateUser} className="space-y-4">
+              {editMsg && <p className="text-xs text-red-400 font-bold mb-4">{editMsg}</p>}
+              
+              <div>
+                <p className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Correo</p>
+                <p className="w-full mt-1 bg-black/20 border border-neutral-800/50 text-neutral-400 rounded-xl px-4 py-3 text-sm font-bold select-all">
+                  {selectedUserToEdit.email}
+                </p>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Nombre Completo</label>
+                <input 
+                  required 
+                  type="text" 
+                  value={editNombre} 
+                  onChange={(e) => setEditNombre(e.target.value)} 
+                  placeholder="Ej: Juan Pérez" 
+                  className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 text-sm font-bold text-white" 
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Rol</label>
+                <select 
+                  value={editRole} 
+                  onChange={(e) => setEditRole(e.target.value)} 
+                  className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 text-sm font-bold text-white"
+                >
+                  <option value="Administrador">Administrador</option>
+                  <option value="Gerente">Gerente</option>
+                  <option value="Supervisor">Supervisor</option>
+                  <option value="Asesor">Asesor</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Nueva Contraseña (Opcional)</label>
+                <input 
+                  type="password" 
+                  value={editPassword} 
+                  onChange={(e) => setEditPassword(e.target.value)} 
+                  placeholder="Dejar en blanco para conservar la actual" 
+                  className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-xl px-4 py-3 outline-none focus:border-indigo-500 text-sm font-bold text-white placeholder:text-neutral-600" 
+                />
+              </div>
+
+              <div className="flex items-center gap-3 pt-2">
+                <input 
+                  type="checkbox" 
+                  id="editDisabled"
+                  checked={editDisabled} 
+                  onChange={(e) => setEditDisabled(e.target.checked)} 
+                  className="w-4 h-4 rounded border-neutral-800 bg-black text-indigo-600 focus:ring-indigo-500" 
+                />
+                <label htmlFor="editDisabled" className="text-xs font-black text-neutral-400 uppercase tracking-wider cursor-pointer">
+                  Deshabilitar Acceso a la Cuenta
+                </label>
+              </div>
+
+              <div className="flex gap-4 pt-4 border-t border-neutral-800">
+                <button 
+                  type="button" 
+                  onClick={() => setSelectedUserToEdit(null)}
+                  className="w-1/2 py-3 bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white rounded-xl font-black uppercase tracking-widest transition-all text-xs"
+                >
+                  Cancelar
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={editLoading}
+                  className="w-1/2 py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black uppercase tracking-widest transition-all text-xs flex items-center justify-center gap-2"
+                >
+                  {editLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CONFIGURACIÓN DE REGLAS DEL COTIZADOR */}
       <div className="max-w-4xl mx-auto bg-neutral-900 border border-neutral-800 rounded-[2.5rem] p-10 shadow-2xl space-y-6 mb-12 relative overflow-hidden">
