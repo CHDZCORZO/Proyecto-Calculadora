@@ -396,6 +396,7 @@ export default function AdminPage() {
   };
 
   const [uploadTablasStatus, setUploadTablasStatus] = useState<{msg: string, type: 'idle' | 'loading' | 'success' | 'error'}>({ msg: '', type: 'idle' });
+  const [uploadTablasConvenio, setUploadTablasConvenio] = useState('IMSS PENSIONADOS');
   const [uploadTablasMarca, setUploadTablasMarca] = useState('OPCIPRES');
   const [uploadTablasTramite, setUploadTablasTramite] = useState('CNCA INTERNO');
 
@@ -403,8 +404,8 @@ export default function AdminPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (!uploadTablasMarca || !uploadTablasTramite) {
-      setUploadTablasStatus({ msg: 'Selecciona Marca y Trámite antes de subir', type: 'error' });
+    if (!uploadTablasMarca || !uploadTablasTramite || !uploadTablasConvenio) {
+      setUploadTablasStatus({ msg: 'Selecciona Convenio, Marca y Trámite antes de subir', type: 'error' });
       return;
     }
 
@@ -438,13 +439,14 @@ export default function AdminPage() {
               const descuento = cleanNumber(row.getCell(4).value);
               const tasa = cleanNumber(row.getCell(5).value);
               const cat_valor = cleanNumber(row.getCell(6).value);
-              // Usamos la marca y tramite seleccionados en la UI
+              // Usamos la marca, tramite y convenio seleccionados en la UI
               const marca = uploadTablasMarca;
               const tramite = uploadTablasTramite;
+              const convenio = uploadTablasConvenio;
 
               if (marca && tramite && plazo > 0 && monto > 0) {
                 filasAInsertar.push({
-                  id_oferta, plazo, monto, descuento, tasa, cat_valor, marca, tramite
+                  id_oferta, plazo, monto, descuento, tasa, cat_valor, marca, tramite, convenio
                 });
               }
             }
@@ -456,7 +458,8 @@ export default function AdminPage() {
             .insert({
               nombre: file.name,
               marca: uploadTablasMarca,
-              tramite: uploadTablasTramite
+              tramite: uploadTablasTramite,
+              convenio: uploadTablasConvenio
             })
             .select()
             .single();
@@ -772,6 +775,13 @@ export default function AdminPage() {
 
         <div className="flex flex-col md:flex-row gap-6 justify-center max-w-xl mx-auto">
           <div className="w-full">
+             <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Convenio</label>
+             <select value={uploadTablasConvenio} onChange={e => setUploadTablasConvenio(e.target.value)} className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
+                <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
+                <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
+             </select>
+          </div>
+          <div className="w-full">
              <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Marca de la Tabla</label>
              <select value={uploadTablasMarca} onChange={e => setUploadTablasMarca(e.target.value)} className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
                 <option value="OPCIPRES">OPCIPRES</option>
@@ -842,6 +852,7 @@ export default function AdminPage() {
                   <div>
                     <p className="text-sm font-black text-white">{archivo.nombre}</p>
                     <div className="flex gap-2 mt-1">
+                      <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.convenio || 'IMSS PENSIONADOS'}</span>
                       <span className="text-[9px] font-bold text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.marca}</span>
                       <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.tramite}</span>
                     </div>

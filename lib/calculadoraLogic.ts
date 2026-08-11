@@ -74,17 +74,21 @@ export function calcularOfertas(
     }
 
     // =========================================================================
-    // 3. VALIDACIÓN DE MEJORA DE CONDICIONES (Por crédito individual)
+    // 3. VALIDACIÓN DE MEJORA DE CONDICIONES Y PAGOS MÍNIMOS (Por crédito individual)
     // =========================================================================
-    const requiereMejora = ['CNCA', 'Intercompañía', 'LCOM TERCEROS'].includes(tipoProducto);
+    const requiereMejora = ['CNCA', 'Intercompañía', 'INTERCOMPAÑÍA', 'LCOM TERCEROS'].includes(tipoProducto);
 
     if (requiereMejora && creditosALiquidar.length > 0) {
+      // Validar mínimo 24 pagos aplicados en todos los créditos
+      const tienePagosSuficientes = creditosALiquidar.every(c => c.pagos_aplicados >= 24);
+      if (!tienePagosSuficientes) return false;
+
       // Debe cumplirse para CADA crédito a liquidar
       const mejoraCumplida = creditosALiquidar.every((credito) => {
         if (tipoProducto === 'CNCA') {
-          // El Nuevo_CAT debe ser estrictamente menor al CAT de CADA crédito
+          // El Nuevo_CAT debe ser strictly menor al CAT de CADA crédito
           return oferta.cat_iva < credito.cat;
-        } else if (tipoProducto === 'Intercompañía' || tipoProducto === 'LCOM TERCEROS') {
+        } else if (tipoProducto === 'Intercompañía' || tipoProducto === 'INTERCOMPAÑÍA' || tipoProducto === 'LCOM TERCEROS') {
           // El Nuevo_CAT debe ser <= (CAT anterior - 0.50) para CADA crédito
           return oferta.cat_iva <= (credito.cat - 0.50);
         }

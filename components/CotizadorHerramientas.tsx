@@ -32,6 +32,7 @@ export const CotizadorHerramientas = () => {
   const [capacidadTotal, setCapacidadTotal] = useState<number>(1000);
   const [montoSolicitar, setMontoSolicitar] = useState<number>(0);
   const [edad, setEdad] = useState<number>(35);
+  const [convenio, setConvenio] = useState<string>('IMSS PENSIONADOS');
   const [tipoTramite, setTipoTramite] = useState<string>('CNCA INTERNO');
   const [creditos, setCreditos] = useState<CreditoALiquidar[]>([]);
   const [reglas, setReglas] = useState<ReglasType>({});
@@ -98,6 +99,7 @@ export const CotizadorHerramientas = () => {
         .from('tablas_cotizador')
         .select('*')
         .eq('tramite', tipoTramite)
+        .eq('convenio', convenio)
         .order('id')
         .range(from, from + step - 1);
         
@@ -111,7 +113,7 @@ export const CotizadorHerramientas = () => {
     }
 
     if (tablasRaw.length === 0) {
-      alert(`No hay tablas de cotización cargadas en el sistema para el trámite: ${tipoTramite}.`);
+      alert(`No hay tablas de cotización cargadas en el sistema para el convenio "${convenio}" y trámite "${tipoTramite}".`);
       setCalculando(false);
       return;
     }
@@ -119,16 +121,14 @@ export const CotizadorHerramientas = () => {
     console.log(`Total filas cargadas: ${tablasRaw.length}`);
     const marcasDisponibles = Array.from(new Set(tablasRaw.map((o: any) => o.marca)));
     console.log(`Marcas disponibles:`, marcasDisponibles);
-    
-    if (!marcasDisponibles.includes('CONSUPAGO') && marcasDisponibles.length > 0) {
-      alert(`Error de Paginación: Se trajeron ${tablasRaw.length} filas pero no apareció CONSUPAGO.`);
-    }
 
     const totalSaldos = creditos.reduce((acc, c) => acc + c.saldo, 0);
     const capacidadTotalizada = montoSolicitar > 0 ? 0 : capacidadTotal + creditos.reduce((acc, c) => acc + c.descuentoActual, 0);
 
     const resultadosTemp: Record<string, Oferta[]> = {};
     const erroresTemp: Record<string, string> = {};
+
+    const esQuincenal = convenio === 'IMSS BIENESTAR';
 
     marcasDisponibles.forEach(marca => {
       // 1. Filtrar las ofertas de esta marca
@@ -158,18 +158,22 @@ export const CotizadorHerramientas = () => {
           }
         }
 
-        // Edad Crítica
-        const edadCritica = reglas['edad_critica_maxima'] || 85;
-        // Plazo está en meses, por lo que lo dividimos entre 12 para sumarlo a la edad actual
-        if (edad + (Number(oferta.plazo) / 12) > edadCritica) {
-          errorPrincipal = `Edad Crítica excedida (${edadCritica})`;
+        // Edad Crítica (75 para IMSS BIENESTAR, 85 para IMSS PENSIONADOS)
+        const edadCritica = esQuincenal 
+          ? (reglas['imss_bienestar_edad_critica_maxima'] || 75) 
+          : (reglas['edad_critica_maxima'] || 85);
+        // Si es quincenal: 24 quincenas = 1 año. Si es mensual: 12 meses = 1 año.
+        const plazoEnAnios = esQuincenal ? (Number(oferta.plazo) / 24) : (Number(oferta.plazo) / 12);
+        if (edad + plazoEnAnios > edadCritica) {
+          errorPrincipal = `Edad Crítica excedida (${edadCritica} años)`;
           continue;
         }
 
-        // Plazo Máximo
-        const plazoMax = reglas['plazo_maximo'] || 60;
-        if (Number(oferta.plazo) > plazoMax) {
-          errorPrincipal = `Plazo mayor al permitido (${plazoMax})`;
+        // Plazo Máximo (la regla se especifica en meses, ej. 60 meses = 120 quincenas)
+        const plazoMaxMeses = reglas['plazo_maximo'] || 60;
+        const plazoEnMeses = esQuincenal ? (Number(oferta.plazo) / 2) : Number(oferta.plazo);
+        if (plazoEnMeses > plazoMaxMeses) {
+          errorPrincipal = `Plazo mayor al permitido (${plazoMaxMeses} meses)`;
           continue;
         }
 
@@ -179,8 +183,16 @@ export const CotizadorHerramientas = () => {
           continue;
         }
 
-        // B. MEJORA DE CAT (Excluye CNCA Interno)
-        if (tipoTramite !== 'CNCA INTERNO') {
+        // B. REGLA DE PAGOS MÍNIMOS Y MEJORA DE CAT (Excluye CNCA Interno y convenios sin regla de mejora como IMSS BIENESTAR)
+        if (['CNCA', 'INTERCOMPAÑÍA', 'LCOM TERCEROS'].includes(tipoTramite) && creditos.length > 0) {
+          const tienePagosSuficientes = creditos.every(c => c.pagosAplicados >= 24);
+          if (!tienePagosSuficientes) {
+            errorPrincipal = "Se requieren mínimo 24 pagos aplicados en los créditos a liquidar";
+            continue;
+          }
+        }
+
+        if (tipoTramite !== 'CNCA INTERNO' && convenio !== 'IMSS BIENESTAR') {
           // Tomamos el CAT más bajo (el mejor CAT que tiene actualmente el cliente) para asegurar que la nueva oferta sea mejor que TODAS sus deudas.
           const catAnterior = creditos.length > 0 ? Math.min(...creditos.map(c => c.cat)) : 0;
           
@@ -242,30 +254,29 @@ export const CotizadorHerramientas = () => {
         ofertasViables.push(oferta);
       }
 
-      // Agrupar por ID de Oferta
+      // Agrupar por ID_OFERTA y PLAZO para mostrar todas las opciones de plazos de cada producto
       if (ofertasViables.length > 0) {
-        const mejoresPorId: Record<string, Oferta> = {};
+        const mejoresPorIdYPlazo: Record<string, Oferta> = {};
         ofertasViables.forEach(o => {
-          if (!mejoresPorId[o.id_oferta]) {
-            mejoresPorId[o.id_oferta] = o;
+          const key = `${o.id_oferta}_${o.plazo}`;
+          if (!mejoresPorIdYPlazo[key]) {
+            mejoresPorIdYPlazo[key] = o;
           } else {
             if (montoSolicitar > 0) {
-              // Modo "Monto a Solicitar": Nos quedamos con la opción más cercana al monto solicitado (la de menor monto de las que ya pasaron el filtro)
-              if (Number(o.monto) < Number(mejoresPorId[o.id_oferta].monto)) {
-                mejoresPorId[o.id_oferta] = o;
+              if (Number(o.monto) < Number(mejoresPorIdYPlazo[key].monto)) {
+                mejoresPorIdYPlazo[key] = o;
               }
             } else {
-              // Modo "Capacidad" (Default): Nos quedamos con la de mayor monto posible
-              if (Number(o.monto) > Number(mejoresPorId[o.id_oferta].monto)) {
-                mejoresPorId[o.id_oferta] = o;
+              if (Number(o.monto) > Number(mejoresPorIdYPlazo[key].monto)) {
+                mejoresPorIdYPlazo[key] = o;
               }
             }
           }
         });
-        // Ordenar plazos ascendentemente, y por id_oferta en caso de empate
-        resultadosTemp[marca] = Object.values(mejoresPorId).sort((a, b) => {
-          if (a.plazo !== b.plazo) return a.plazo - b.plazo;
-          return a.id_oferta.localeCompare(b.id_oferta);
+        // Ordenar por ID de Oferta y por Plazo ascendentemente
+        resultadosTemp[marca] = Object.values(mejoresPorIdYPlazo).sort((a, b) => {
+          if (a.id_oferta !== b.id_oferta) return a.id_oferta.localeCompare(b.id_oferta);
+          return Number(a.plazo) - Number(b.plazo);
         });
       } else {
         erroresTemp[marca] = errorPrincipal || "No hay ofertas viables para este perfil.";
@@ -334,6 +345,24 @@ export const CotizadorHerramientas = () => {
             </div>
           </div>
 
+          <div>
+            <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Convenio</label>
+            <select 
+              value={convenio} 
+              onChange={e => {
+                const newConv = e.target.value;
+                setConvenio(newConv);
+                if (newConv === 'IMSS BIENESTAR' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
+                  setTipoTramite('NUEVO');
+                }
+              }} 
+              className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm"
+            >
+               <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
+               <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div>
                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Edad</label>
@@ -342,12 +371,12 @@ export const CotizadorHerramientas = () => {
             <div>
                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Trámite</label>
                <select value={tipoTramite} onChange={e => setTipoTramite(e.target.value)} className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
-                  <option>NUEVO</option>
-                  <option>SEGUNDA DISP</option>
-                  <option>CNCA INTERNO</option>
-                  <option>CNCA</option>
-                  <option>INTERCOMPAÑÍA</option>
-                  <option>LCOM TERCEROS</option>
+                  <option value="NUEVO">NUEVO</option>
+                  <option value="SEGUNDA DISP">SEGUNDA DISP</option>
+                  {convenio === 'IMSS PENSIONADOS' && <option value="CNCA INTERNO">CNCA INTERNO</option>}
+                  <option value="CNCA">CNCA</option>
+                  <option value="INTERCOMPAÑÍA">INTERCOMPAÑÍA</option>
+                  {convenio === 'IMSS PENSIONADOS' && <option value="LCOM TERCEROS">LCOM TERCEROS</option>}
                </select>
             </div>
           </div>
@@ -417,6 +446,7 @@ export const CotizadorHerramientas = () => {
               setCapacidadTotal(1000);
               setMontoSolicitar(0);
               setEdad(35);
+              setConvenio('IMSS PENSIONADOS');
               setTipoTramite('CNCA INTERNO');
               setCreditos([]);
               setResultados({});
@@ -469,6 +499,71 @@ export const CotizadorHerramientas = () => {
               }
 
               if (ofertas && ofertas.length > 0) {
+                if (convenio === 'IMSS BIENESTAR') {
+                  // Sub-agrupar por id_oferta para mostrar una tarjeta/tabla independiente por cada producto
+                  const ofertasPorId: Record<string, Oferta[]> = {};
+                  ofertas.forEach(o => {
+                    if (!ofertasPorId[o.id_oferta]) ofertasPorId[o.id_oferta] = [];
+                    ofertasPorId[o.id_oferta].push(o);
+                  });
+
+                  return Object.entries(ofertasPorId).map(([idOferta, ofertasSub]) => (
+                    <div key={`${marca}-${idOferta}`} className="bg-gradient-to-br from-neutral-900 to-black border border-neutral-800 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden group">
+                      <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6 relative z-10 border-b border-neutral-800/80 pb-4">
+                         <div>
+                            <span className="font-black italic text-white text-2xl tracking-tight">{marca}</span>
+                            <span className="block text-[10px] font-black text-indigo-400 uppercase tracking-widest mt-1">PRODUCTO: {idOferta}</span>
+                         </div>
+                         <div className="bg-emerald-500/10 p-2 rounded-full border border-emerald-500/20 self-start sm:self-center">
+                           <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                         </div>
+                      </div>
+
+                      <div className="space-y-3 relative z-10">
+                        {ofertasSub.map((o, idx) => (
+                          <div key={`${o.id_oferta}-${idx}`} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-indigo-500/50 transition-colors">
+                            <div className="flex justify-between items-center border-b border-neutral-800/50 pb-2">
+                              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">ID: {o.id_oferta}</span>
+                              <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest bg-neutral-800 px-2 py-1 rounded">
+                                Plazo: {o.plazo} Quincenas
+                              </span>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <span className="block text-[9px] font-bold text-neutral-500 uppercase">Monto Bruto</span>
+                                <span className="block text-lg font-black text-white">${Number(o.monto).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="block text-[9px] font-bold text-neutral-500 uppercase">Neto Libre</span>
+                                <span className="block text-lg font-black text-emerald-400">${(Number(o.monto) - totalSaldosFinal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2 pt-2 border-t border-neutral-800/50">
+                              <div className="text-center">
+                                <span className="block text-[8px] font-bold text-neutral-500 uppercase">Tasa</span>
+                                <span className="block text-sm font-bold text-neutral-300">{Number(o.tasa).toFixed(2)}%</span>
+                              </div>
+                              <div className="text-center border-x border-neutral-800/50">
+                                <span className="block text-[8px] font-bold text-neutral-500 uppercase">CAT</span>
+                                <span className="block text-sm font-bold text-neutral-300">{Number(o.cat_valor).toFixed(2)}%</span>
+                              </div>
+                              <div className="text-center">
+                                <span className="block text-[8px] font-bold text-neutral-500 uppercase">Desc. Quincenal</span>
+                                <span className="block text-sm font-bold text-indigo-400">${Number(o.descuento).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                }
+
+                // IMSS PENSIONADOS u otros convenios
                 return (
                   <div key={marca} className="bg-gradient-to-br from-neutral-900 to-black border border-neutral-800 rounded-[2.5rem] p-6 shadow-2xl relative overflow-hidden group">
                     <div className="absolute inset-0 bg-indigo-500/5 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -485,7 +580,9 @@ export const CotizadorHerramientas = () => {
                         <div key={`${o.id_oferta}-${idx}`} className="bg-neutral-900 border border-neutral-800 rounded-2xl p-4 flex flex-col gap-3 hover:border-indigo-500/50 transition-colors">
                           <div className="flex justify-between items-center border-b border-neutral-800/50 pb-2">
                             <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest">ID: {o.id_oferta}</span>
-                            <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest bg-neutral-800 px-2 py-1 rounded">Plazo: {o.plazo}</span>
+                            <span className="text-[10px] font-black text-neutral-500 uppercase tracking-widest bg-neutral-800 px-2 py-1 rounded">
+                              Plazo: {o.plazo} Meses
+                            </span>
                           </div>
                           
                           <div className="grid grid-cols-2 gap-4">
