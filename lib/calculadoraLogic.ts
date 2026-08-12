@@ -1,9 +1,13 @@
 export type TipoProducto =
   | 'Nuevo'
+  | 'NUEVO'
   | 'Segunda disposición'
+  | 'SEGUNDA DISP'
   | 'CNCA'
   | 'Intercompañía'
+  | 'INTERCOMPAÑÍA'
   | 'CNCA Interno'
+  | 'CNCA INTERNO'
   | 'LCOM TERCEROS';
 
 export interface CreditoALiquidar {
@@ -76,7 +80,8 @@ export function calcularOfertas(
     // =========================================================================
     // 3. VALIDACIÓN DE MEJORA DE CONDICIONES Y PAGOS MÍNIMOS (Por crédito individual)
     // =========================================================================
-    const requiereMejora = ['CNCA', 'Intercompañía', 'INTERCOMPAÑÍA', 'LCOM TERCEROS'].includes(tipoProducto);
+    const tpStr = (tipoProducto as string).toUpperCase();
+    const requiereMejora = ['CNCA', 'INTERCOMPAÑÍA', 'INTERCOMPANIA', 'LCOM TERCEROS'].includes(tpStr);
 
     if (requiereMejora && creditosALiquidar.length > 0) {
       // Validar mínimo 24 pagos aplicados en todos los créditos
@@ -85,10 +90,10 @@ export function calcularOfertas(
 
       // Debe cumplirse para CADA crédito a liquidar
       const mejoraCumplida = creditosALiquidar.every((credito) => {
-        if (tipoProducto === 'CNCA') {
-          // El Nuevo_CAT debe ser strictly menor al CAT de CADA crédito
+        if (tpStr === 'CNCA') {
+          // El Nuevo_CAT debe ser estrictamente menor al CAT de CADA crédito
           return oferta.cat_iva < credito.cat;
-        } else if (tipoProducto === 'Intercompañía' || tipoProducto === 'INTERCOMPAÑÍA' || tipoProducto === 'LCOM TERCEROS') {
+        } else if (tpStr === 'INTERCOMPAÑÍA' || tpStr === 'INTERCOMPANIA' || tpStr === 'LCOM TERCEROS') {
           // El Nuevo_CAT debe ser <= (CAT anterior - 0.50) para CADA crédito
           return oferta.cat_iva <= (credito.cat - 0.50);
         }
