@@ -779,6 +779,7 @@ export default function AdminPage() {
              <select value={uploadTablasConvenio} onChange={e => setUploadTablasConvenio(e.target.value)} className="w-full mt-1 bg-black/40 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
                 <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
                 <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
+                <option value="GOB CDMX">GOB CDMX</option>
              </select>
           </div>
           <div className="w-full">

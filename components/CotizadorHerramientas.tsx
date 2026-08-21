@@ -128,7 +128,7 @@ export const CotizadorHerramientas = () => {
     const resultadosTemp: Record<string, Oferta[]> = {};
     const erroresTemp: Record<string, string> = {};
 
-    const esQuincenal = convenio === 'IMSS BIENESTAR';
+    const esQuincenal = convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX';
 
     marcasDisponibles.forEach(marca => {
       // 1. Filtrar las ofertas de esta marca
@@ -158,9 +158,11 @@ export const CotizadorHerramientas = () => {
           }
         }
 
-        // Edad Crítica (75 para IMSS BIENESTAR, 85 para IMSS PENSIONADOS)
+        // Edad Crítica (75 para IMSS BIENESTAR y GOB CDMX, 85 para IMSS PENSIONADOS)
         const edadCritica = esQuincenal 
-          ? (reglas['imss_bienestar_edad_critica_maxima'] || 75) 
+          ? (convenio === 'GOB CDMX' 
+              ? (reglas['gob_cdmx_edad_critica_maxima'] || 75) 
+              : (reglas['imss_bienestar_edad_critica_maxima'] || 75)) 
           : (reglas['edad_critica_maxima'] || 85);
         // Si es quincenal: 24 quincenas = 1 año. Si es mensual: 12 meses = 1 año.
         const plazoEnAnios = esQuincenal ? (Number(oferta.plazo) / 24) : (Number(oferta.plazo) / 12);
@@ -183,16 +185,18 @@ export const CotizadorHerramientas = () => {
           continue;
         }
 
-        // B. REGLA DE PAGOS MÍNIMOS Y MEJORA DE CAT (Excluye CNCA Interno y convenios sin regla de mejora como IMSS BIENESTAR)
+        // B. REGLA DE PAGOS MÍNIMOS Y MEJORA DE CAT (Excluye CNCA Interno y convenios sin regla de mejora como IMSS BIENESTAR y GOB CDMX)
         if (['CNCA', 'INTERCOMPAÑÍA', 'LCOM TERCEROS'].includes(tipoTramite) && creditos.length > 0) {
-          const tienePagosSuficientes = creditos.every(c => c.pagosAplicados >= 24);
+          // GOB CDMX solo requiere 3 pagos aplicados para CNCA e INTERCOMPAÑÍA
+          const pagosMinimos = convenio === 'GOB CDMX' ? 3 : 24;
+          const tienePagosSuficientes = creditos.every(c => c.pagosAplicados >= pagosMinimos);
           if (!tienePagosSuficientes) {
-            errorPrincipal = "Se requieren mínimo 24 pagos aplicados en los créditos a liquidar";
+            errorPrincipal = `Se requieren mínimo ${pagosMinimos} pagos aplicados en los créditos a liquidar`;
             continue;
           }
         }
 
-        if (tipoTramite !== 'CNCA INTERNO' && convenio !== 'IMSS BIENESTAR') {
+        if (tipoTramite !== 'CNCA INTERNO' && convenio !== 'IMSS BIENESTAR' && convenio !== 'GOB CDMX') {
           // Tomamos el CAT más bajo (el mejor CAT que tiene actualmente el cliente) para asegurar que la nueva oferta sea mejor que TODAS sus deudas.
           const catAnterior = creditos.length > 0 ? Math.min(...creditos.map(c => c.cat)) : 0;
           
@@ -355,11 +359,15 @@ export const CotizadorHerramientas = () => {
                 if (newConv === 'IMSS BIENESTAR' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
                   setTipoTramite('NUEVO');
                 }
+                if (newConv === 'GOB CDMX' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
+                  setTipoTramite('NUEVO');
+                }
               }} 
               className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm"
             >
                <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
                <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
+               <option value="GOB CDMX">GOB CDMX</option>
             </select>
           </div>
 
@@ -377,6 +385,7 @@ export const CotizadorHerramientas = () => {
                   <option value="CNCA">CNCA</option>
                   <option value="INTERCOMPAÑÍA">INTERCOMPAÑÍA</option>
                   {convenio === 'IMSS PENSIONADOS' && <option value="LCOM TERCEROS">LCOM TERCEROS</option>}
+                  {/* GOB CDMX solo permite: NUEVO, SEGUNDA DISP, CNCA, INTERCOMPAÑÍA */}
                </select>
             </div>
           </div>
@@ -499,7 +508,7 @@ export const CotizadorHerramientas = () => {
               }
 
               if (ofertas && ofertas.length > 0) {
-                if (convenio === 'IMSS BIENESTAR') {
+                if (convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX') {
                   // Sub-agrupar por id_oferta para mostrar una tarjeta/tabla independiente por cada producto
                   const ofertasPorId: Record<string, Oferta[]> = {};
                   ofertas.forEach(o => {
