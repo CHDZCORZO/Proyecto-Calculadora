@@ -128,7 +128,7 @@ export const CotizadorHerramientas = () => {
     const resultadosTemp: Record<string, Oferta[]> = {};
     const erroresTemp: Record<string, string> = {};
 
-    const esQuincenal = convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX';
+    const esQuincenal = convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX' || convenio === 'GEM';
 
     marcasDisponibles.forEach(marca => {
       // 1. Filtrar las ofertas de esta marca
@@ -158,10 +158,12 @@ export const CotizadorHerramientas = () => {
           }
         }
 
-        // Edad Crítica (75 para IMSS BIENESTAR y GOB CDMX, 85 para IMSS PENSIONADOS)
+        // Edad Crítica (75 para IMSS BIENESTAR, GOB CDMX y GEM; 85 para IMSS PENSIONADOS)
         const edadCritica = esQuincenal 
           ? (convenio === 'GOB CDMX' 
               ? (reglas['gob_cdmx_edad_critica_maxima'] || 75) 
+              : convenio === 'GEM'
+              ? (reglas['gem_edad_critica_maxima'] || 75)
               : (reglas['imss_bienestar_edad_critica_maxima'] || 75)) 
           : (reglas['edad_critica_maxima'] || 85);
         // Si es quincenal: 24 quincenas = 1 año. Si es mensual: 12 meses = 1 año.
@@ -187,8 +189,8 @@ export const CotizadorHerramientas = () => {
 
         // B. REGLA DE PAGOS MÍNIMOS Y MEJORA DE CAT (Excluye CNCA Interno y convenios sin regla de mejora como IMSS BIENESTAR y GOB CDMX)
         if (['CNCA', 'INTERCOMPAÑÍA', 'LCOM TERCEROS'].includes(tipoTramite) && creditos.length > 0) {
-          // GOB CDMX solo requiere 3 pagos aplicados para CNCA e INTERCOMPAÑÍA
-          const pagosMinimos = convenio === 'GOB CDMX' ? 3 : 24;
+          // GOB CDMX y GEM solo requieren 3 pagos aplicados para CNCA e INTERCOMPAÑÍA
+          const pagosMinimos = (convenio === 'GOB CDMX' || convenio === 'GEM') ? 3 : 24;
           const tienePagosSuficientes = creditos.every(c => c.pagosAplicados >= pagosMinimos);
           if (!tienePagosSuficientes) {
             errorPrincipal = `Se requieren mínimo ${pagosMinimos} pagos aplicados en los créditos a liquidar`;
@@ -196,7 +198,7 @@ export const CotizadorHerramientas = () => {
           }
         }
 
-        if (tipoTramite !== 'CNCA INTERNO' && convenio !== 'IMSS BIENESTAR' && convenio !== 'GOB CDMX') {
+        if (tipoTramite !== 'CNCA INTERNO' && convenio !== 'IMSS BIENESTAR' && convenio !== 'GOB CDMX' && convenio !== 'GEM') {
           // Tomamos el CAT más bajo (el mejor CAT que tiene actualmente el cliente) para asegurar que la nueva oferta sea mejor que TODAS sus deudas.
           const catAnterior = creditos.length > 0 ? Math.min(...creditos.map(c => c.cat)) : 0;
           
@@ -362,12 +364,16 @@ export const CotizadorHerramientas = () => {
                 if (newConv === 'GOB CDMX' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
                   setTipoTramite('NUEVO');
                 }
+                if (newConv === 'GEM' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
+                  setTipoTramite('NUEVO');
+                }
               }} 
               className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm"
             >
                <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
                <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
                <option value="GOB CDMX">GOB CDMX</option>
+               <option value="GEM">GEM</option>
             </select>
           </div>
 
@@ -508,7 +514,7 @@ export const CotizadorHerramientas = () => {
               }
 
               if (ofertas && ofertas.length > 0) {
-                if (convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX') {
+                if (convenio === 'IMSS BIENESTAR' || convenio === 'GOB CDMX' || convenio === 'GEM') {
                   // Sub-agrupar por id_oferta para mostrar una tarjeta/tabla independiente por cada producto
                   const ofertasPorId: Record<string, Oferta[]> = {};
                   ofertas.forEach(o => {

@@ -780,6 +780,7 @@ export default function AdminPage() {
                 <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
                 <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
                 <option value="GOB CDMX">GOB CDMX</option>
+                 <option value="GEM">GEM</option>
              </select>
           </div>
           <div className="w-full">
