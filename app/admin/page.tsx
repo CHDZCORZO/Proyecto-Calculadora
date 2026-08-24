@@ -781,6 +781,7 @@ export default function AdminPage() {
                 <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
                 <option value="GOB CDMX">GOB CDMX</option>
                  <option value="GEM">GEM</option>
+                 <option value="SEP">SEP</option>
              </select>
           </div>
           <div className="w-full">
