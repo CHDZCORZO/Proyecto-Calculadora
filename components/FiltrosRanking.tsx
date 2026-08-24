@@ -35,6 +35,7 @@ export const FiltrosRanking = () => {
             <option value="CONSUBANCO">CONSUBANCO</option>
             <option value="MAS NOMINA">MAS NOMINA</option>
             <option value="CONSUPAGO">CONSUPAGO</option>
+            <option value="HXTI">HXTI</option>
           </select>
         </div>
 

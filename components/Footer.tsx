@@ -10,7 +10,7 @@ export function Footer() {
         </div>
         <div className="space-y-1">
           <p className="text-[11px] md:text-xs font-black text-neutral-400 uppercase tracking-widest">
-            © 2026 H. Corzo, Inc. y sus filiales. Todos los derechos reservados. — V1.8.4
+            © 2026 H. Corzo, Inc. y sus filiales. Todos los derechos reservados. — V1.9.4
           </p>
           <p className="text-[9px] md:text-[10px] font-bold text-indigo-500/80 uppercase tracking-[0.2em]">
             Desarrollado con mentalidad de crecimiento.

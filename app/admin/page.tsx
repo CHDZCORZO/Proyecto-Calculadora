@@ -14,7 +14,8 @@ import {
   Target,
   User,
   Trash2,
-  Settings2
+  Settings2,
+  Search
 } from 'lucide-react';
 import Link from 'next/link';
 import { DayPicker } from 'react-day-picker';
@@ -53,6 +54,8 @@ export default function AdminPage() {
   // ESTADOS DE ARCHIVOS DE COTIZACIÓN
   // ----------------------------------------------------
   const [archivosCargados, setArchivosCargados] = useState<any[]>([]);
+  const [filtroConvenioTablas, setFiltroConvenioTablas] = useState<string>('TODOS');
+  const [busquedaTablas, setBusquedaTablas] = useState<string>('');
 
   // ----------------------------------------------------
   // ESTADOS DE GESTIÓN DE USUARIOS
@@ -782,6 +785,7 @@ export default function AdminPage() {
                 <option value="GOB CDMX">GOB CDMX</option>
                  <option value="GEM">GEM</option>
                  <option value="SEP">SEP</option>
+                 <option value="IEEPO">IEEPO</option>
              </select>
           </div>
           <div className="w-full">
@@ -791,6 +795,7 @@ export default function AdminPage() {
                 <option value="CONSUBANCO">CONSUBANCO</option>
                 <option value="MAS NOMINA">MAS NOMINA</option>
                 <option value="CONSUPAGO">CONSUPAGO</option>
+                <option value="HXTI">HXTI</option>
              </select>
           </div>
           <div className="w-full">
@@ -844,38 +849,115 @@ export default function AdminPage() {
         )}
 
         {/* LISTA DE ARCHIVOS CARGADOS */}
-        <div className="mt-8 pt-8 border-t border-neutral-800">
-          <h3 className="text-sm font-black text-neutral-500 uppercase tracking-widest mb-6">Archivos Activos en Base de Datos</h3>
-          {archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON').length === 0 ? (
-            <p className="text-xs font-bold text-neutral-600 uppercase text-center py-4 bg-black/20 rounded-xl border border-neutral-800">No hay tablas cargadas actualmente</p>
-          ) : (
-            <div className="space-y-3">
-              {archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON').map(archivo => (
-                <div key={archivo.id} className="bg-black/40 border border-neutral-800 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-neutral-700 transition-colors">
-                  <div>
-                    <p className="text-sm font-black text-white">{archivo.nombre}</p>
-                    <div className="flex gap-2 mt-1">
-                      <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.convenio || 'IMSS PENSIONADOS'}</span>
-                      <span className="text-[9px] font-bold text-neutral-400 bg-neutral-800 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.marca}</span>
-                      <span className="text-[9px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded uppercase tracking-widest">{archivo.tramite}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <span className="text-xs font-bold text-neutral-600">
-                      {new Date(archivo.fecha_carga).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                    <button 
-                      onClick={() => eliminarArchivo(archivo.id)}
-                      className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 p-2 rounded-xl transition-colors"
-                      title="Eliminar este archivo y todas sus ofertas"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+        <div className="mt-8 pt-8 border-t border-neutral-800 space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-black text-neutral-400 uppercase tracking-widest">
+                Archivos Activos en Base de Datos
+              </h3>
+              <span className="text-[10px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">
+                {archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON').length} activos
+              </span>
             </div>
-          )}
+            
+            {/* Buscador y Filtro por Convenio */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 sm:flex-none">
+                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500" />
+                <input
+                  type="text"
+                  placeholder="Buscar por nombre, marca..."
+                  value={busquedaTablas}
+                  onChange={e => setBusquedaTablas(e.target.value)}
+                  className="bg-black/50 border border-neutral-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-neutral-500 font-bold outline-none focus:border-indigo-500 transition-all w-full sm:w-48"
+                />
+              </div>
+
+              <select
+                value={filtroConvenioTablas}
+                onChange={e => setFiltroConvenioTablas(e.target.value)}
+                className="bg-black/50 border border-neutral-800 rounded-xl px-3 py-1.5 text-xs font-bold text-neutral-300 outline-none focus:border-indigo-500 transition-all"
+              >
+                <option value="TODOS">Todos los Convenios</option>
+                <option value="IMSS PENSIONADOS">IMSS PENSIONADOS</option>
+                <option value="IMSS BIENESTAR">IMSS BIENESTAR</option>
+                <option value="GOB CDMX">GOB CDMX</option>
+                <option value="GEM">GEM</option>
+                <option value="SEP">SEP</option>
+                <option value="IEEPO">IEEPO</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Contenedor scrollable con scrollbar personalizado y altura fija */}
+          {(() => {
+            const tablasCotizacionArchivos = archivosCargados.filter(a => a.marca !== 'IMSS' && a.tramite !== 'PADRON');
+            const archivosFiltrados = tablasCotizacionArchivos.filter(a => {
+              const cumpleConvenio = filtroConvenioTablas === 'TODOS' || (a.convenio || 'IMSS PENSIONADOS') === filtroConvenioTablas;
+              const q = busquedaTablas.toLowerCase().trim();
+              const cumpleBusqueda = !q || (a.nombre || '').toLowerCase().includes(q) || (a.marca || '').toLowerCase().includes(q) || (a.tramite || '').toLowerCase().includes(q);
+              return cumpleConvenio && cumpleBusqueda;
+            });
+
+            if (tablasCotizacionArchivos.length === 0) {
+              return (
+                <p className="text-xs font-bold text-neutral-600 uppercase text-center py-6 bg-black/20 rounded-2xl border border-neutral-800">
+                  No hay tablas cargadas actualmente
+                </p>
+              );
+            }
+
+            if (archivosFiltrados.length === 0) {
+              return (
+                <p className="text-xs font-bold text-neutral-500 uppercase text-center py-6 bg-black/20 rounded-2xl border border-neutral-800">
+                  No se encontraron archivos con el filtro seleccionado
+                </p>
+              );
+            }
+
+            return (
+              <div className="max-h-[350px] overflow-y-auto pr-1 space-y-2 custom-scrollbar">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {archivosFiltrados.map(archivo => (
+                    <div key={archivo.id} className="bg-black/40 border border-neutral-800 hover:border-neutral-700 rounded-2xl p-3.5 flex items-center justify-between gap-3 transition-colors group">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <FileSpreadsheet className="w-4 h-4 text-neutral-500 group-hover:text-indigo-400 flex-shrink-0 transition-colors" />
+                          <p className="text-xs font-black text-white truncate" title={archivo.nombre}>
+                            {archivo.nombre}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          <span className="text-[8px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            {archivo.convenio || 'IMSS PENSIONADOS'}
+                          </span>
+                          <span className="text-[8px] font-bold text-neutral-400 bg-neutral-800 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            {archivo.marca}
+                          </span>
+                          <span className="text-[8px] font-bold text-indigo-400 bg-indigo-500/10 border border-indigo-500/20 px-1.5 py-0.5 rounded uppercase tracking-wider">
+                            {archivo.tramite}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                        <span className="text-[9px] font-bold text-neutral-500">
+                          {new Date(archivo.fecha_carga).toLocaleDateString('es-MX', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                        <button 
+                          onClick={() => eliminarArchivo(archivo.id)}
+                          className="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 p-1.5 rounded-lg transition-colors"
+                          title="Eliminar este archivo y todas sus ofertas"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

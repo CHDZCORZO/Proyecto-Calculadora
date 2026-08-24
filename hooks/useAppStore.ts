@@ -31,7 +31,7 @@ export type AppState = {
   brands: string[];
 };
 
-const DEFAULT_BRANDS = ['Consubanco', 'Opcipres', 'CNCA', 'LCOM'];
+const DEFAULT_BRANDS = ['Consubanco', 'Opcipres', 'CNCA', 'LCOM', 'HXTI'];
 
 const initialState: AppState = {
   settings: {
