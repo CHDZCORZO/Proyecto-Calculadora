@@ -91,6 +91,16 @@ ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.cotizadores_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.ventas_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.config_metas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.archivos_cargados ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tablas_cotizador ENABLE ROW LEVEL SECURITY;
+
+-- ------------------------------------------------------------------------------
+-- Políticas para: archivos_cargados y tablas_cotizador
+-- ------------------------------------------------------------------------------
+CREATE POLICY "Archivos cargados lectura anon y auth" ON public.archivos_cargados FOR SELECT USING (true);
+CREATE POLICY "Archivos cargados escritura anon y auth" ON public.archivos_cargados FOR ALL USING (true);
+CREATE POLICY "Tablas cotizador lectura anon y auth" ON public.tablas_cotizador FOR SELECT USING (true);
+CREATE POLICY "Tablas cotizador escritura anon y auth" ON public.tablas_cotizador FOR ALL USING (true);
 
 -- ------------------------------------------------------------------------------
 -- Políticas para: profiles

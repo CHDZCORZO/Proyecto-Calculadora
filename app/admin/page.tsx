@@ -786,6 +786,7 @@ export default function AdminPage() {
                  <option value="GEM">GEM</option>
                  <option value="SEP">SEP</option>
                  <option value="IEEPO">IEEPO</option>
+                 <option value="MiDinerito">MiDinerito</option>
              </select>
           </div>
           <div className="w-full">
@@ -885,6 +886,7 @@ export default function AdminPage() {
                 <option value="GEM">GEM</option>
                 <option value="SEP">SEP</option>
                 <option value="IEEPO">IEEPO</option>
+                <option value="MiDinerito">MiDinerito</option>
               </select>
             </div>
           </div>

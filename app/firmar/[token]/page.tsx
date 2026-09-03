@@ -211,8 +211,7 @@ export default function FirmarPage({ params }: { params: { token: string } }) {
   }
 
   if (docInfo?.status === 'firmado' || success) {
-    const baseUrl = supabase.storage.from('imss_documents').getPublicUrl(docInfo.file_path).data.publicUrl;
-    const publicUrl = `${baseUrl}?t=${Date.now()}`; // Burlar caché del navegador
+    const publicUrl = `/api/documentos/${encodeURIComponent(docInfo.file_path)}?t=${Date.now()}`;
 
     return (
       <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 text-center">
@@ -236,7 +235,7 @@ export default function FirmarPage({ params }: { params: { token: string } }) {
     );
   }
 
-  const documentUrl = docInfo ? supabase.storage.from('imss_documents').getPublicUrl(docInfo.file_path).data.publicUrl : "";
+  const documentUrl = docInfo ? `/api/documentos/${encodeURIComponent(docInfo.file_path)}` : "";
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 md:p-12">

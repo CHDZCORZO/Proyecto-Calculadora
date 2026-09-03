@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, CheckCircle2, Calculator, Plus, Trash2, Loader2, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -41,6 +41,12 @@ export const CotizadorHerramientas = () => {
   const [resultados, setResultados] = useState<Record<string, Oferta[]>>({});
   const [erroresMarcas, setErroresMarcas] = useState<Record<string, string>>({});
   const [marcasEvaluadas, setMarcasEvaluadas] = useState<string[]>([]);
+
+  // Refs para garantizar que calcularOfertas siempre use los valores más recientes
+  const convenioRef = useRef(convenio);
+  const tipoTramiteRef = useRef(tipoTramite);
+  convenioRef.current = convenio;
+  tipoTramiteRef.current = tipoTramite;
 
   // Cargar reglas iniciales
   useEffect(() => {
@@ -84,6 +90,10 @@ export const CotizadorHerramientas = () => {
 
   // MOTOR DE CÁLCULO
   const calcularOfertas = async () => {
+    // Leer valores actuales de los refs para evitar closures obsoletos
+    const convenio = convenioRef.current;
+    const tipoTramite = tipoTramiteRef.current;
+
     setCalculando(true);
     setResultados({});
     setErroresMarcas({});
@@ -158,8 +168,10 @@ export const CotizadorHerramientas = () => {
           }
         }
 
-        // Edad Crítica (75 para IMSS BIENESTAR, GOB CDMX, GEM, SEP e IEEPO; 85 para IMSS PENSIONADOS)
-        const edadCritica = esQuincenal 
+        // Edad Crítica (75 para IMSS BIENESTAR, GOB CDMX, GEM, SEP e IEEPO; 80 para MiDinerito; 85 para IMSS PENSIONADOS)
+        const edadCritica = convenio === 'MiDinerito'
+          ? (reglas['midinerito_edad_critica_maxima'] || 80)
+          : esQuincenal 
           ? (convenio === 'GOB CDMX' 
               ? (reglas['gob_cdmx_edad_critica_maxima'] || 75) 
               : convenio === 'GEM'
@@ -362,17 +374,26 @@ export const CotizadorHerramientas = () => {
               onChange={e => {
                 const newConv = e.target.value;
                 setConvenio(newConv);
+                convenioRef.current = newConv;
                 if (newConv === 'IMSS BIENESTAR' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
                   setTipoTramite('NUEVO');
+                  tipoTramiteRef.current = 'NUEVO';
                 }
                 if (newConv === 'GOB CDMX' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
                   setTipoTramite('NUEVO');
+                  tipoTramiteRef.current = 'NUEVO';
                 }
                 if (newConv === 'GEM' && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS')) {
                   setTipoTramite('NUEVO');
+                  tipoTramiteRef.current = 'NUEVO';
                 }
                 if ((newConv === 'SEP' || newConv === 'IEEPO') && (tipoTramite === 'CNCA INTERNO' || tipoTramite === 'LCOM TERCEROS' || tipoTramite === 'INTERCOMPAÑÍA')) {
                   setTipoTramite('NUEVO');
+                  tipoTramiteRef.current = 'NUEVO';
+                }
+                if (newConv === 'MiDinerito' && tipoTramite !== 'NUEVO') {
+                  setTipoTramite('NUEVO');
+                  tipoTramiteRef.current = 'NUEVO';
                 }
               }} 
               className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm"
@@ -383,6 +404,7 @@ export const CotizadorHerramientas = () => {
                <option value="GEM">GEM</option>
                <option value="SEP">SEP</option>
                <option value="IEEPO">IEEPO</option>
+               <option value="MiDinerito">MiDinerito</option>
             </select>
           </div>
 
@@ -393,12 +415,12 @@ export const CotizadorHerramientas = () => {
             </div>
             <div>
                <label className="text-[10px] font-black text-neutral-500 uppercase tracking-widest ml-2">Trámite</label>
-               <select value={tipoTramite} onChange={e => setTipoTramite(e.target.value)} className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
+               <select value={tipoTramite} onChange={e => { setTipoTramite(e.target.value); tipoTramiteRef.current = e.target.value; }} className="w-full mt-1 bg-black/50 border border-neutral-800 rounded-2xl p-4 text-white font-black outline-none focus:border-indigo-500 text-sm">
                   <option value="NUEVO">NUEVO</option>
-                  <option value="SEGUNDA DISP">SEGUNDA DISP</option>
+                  {convenio !== 'MiDinerito' && <option value="SEGUNDA DISP">SEGUNDA DISP</option>}
                   {convenio === 'IMSS PENSIONADOS' && <option value="CNCA INTERNO">CNCA INTERNO</option>}
-                  <option value="CNCA">CNCA</option>
-                  {convenio !== 'SEP' && convenio !== 'IEEPO' && <option value="INTERCOMPAÑÍA">INTERCOMPAÑÍA</option>}
+                  {convenio !== 'MiDinerito' && <option value="CNCA">CNCA</option>}
+                  {convenio !== 'SEP' && convenio !== 'IEEPO' && convenio !== 'MiDinerito' && <option value="INTERCOMPAÑÍA">INTERCOMPAÑÍA</option>}
                   {convenio === 'IMSS PENSIONADOS' && <option value="LCOM TERCEROS">LCOM TERCEROS</option>}
                </select>
             </div>

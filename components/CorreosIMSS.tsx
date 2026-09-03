@@ -512,7 +512,7 @@ export function CorreosIMSS() {
                 </thead>
                 <tbody className="divide-y divide-neutral-900">
                   {filteredData.map((item) => {
-                    const docUrl = supabase.storage.from('imss_documents').getPublicUrl(item.file_path).data.publicUrl;
+                    const docUrl = `/api/documentos/${encodeURIComponent(item.file_path)}`;
                     const firmaLink = typeof window !== 'undefined' ? `${window.location.origin}/firmar/${item.token}` : '';
                     
                     return (
@@ -591,7 +591,7 @@ export function CorreosIMSS() {
             {/* Mobile Card List View */}
             <div className="block lg:hidden divide-y divide-neutral-800">
               {filteredData.map((item) => {
-                const docUrl = supabase.storage.from('imss_documents').getPublicUrl(item.file_path).data.publicUrl;
+                const docUrl = `/api/documentos/${encodeURIComponent(item.file_path)}`;
                 const firmaLink = typeof window !== 'undefined' ? `${window.location.origin}/firmar/${item.token}` : '';
 
                 return (

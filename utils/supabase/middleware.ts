@@ -32,7 +32,10 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isPublicPage = request.nextUrl.pathname.startsWith('/login') || request.nextUrl.pathname.startsWith('/firmar');
+  const isPublicPage = 
+    request.nextUrl.pathname.startsWith('/login') || 
+    request.nextUrl.pathname.startsWith('/firmar') ||
+    request.nextUrl.pathname.startsWith('/api/documentos');
 
   if (!user && !isPublicPage) {
     // no user, potentially respond by redirecting the user to the login page
