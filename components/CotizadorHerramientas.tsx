@@ -100,25 +100,44 @@ export const CotizadorHerramientas = () => {
 
     // Supabase limita a 1000 filas por defecto, paginamos para traer todas las tablas
     let tablasRaw: any[] = [];
-    let hasMore = true;
-    let from = 0;
-    const step = 1000;
+    let queryError: any = null;
+    const maxRetries = 2;
 
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('tablas_cotizador')
-        .select('*')
-        .eq('tramite', tipoTramite)
-        .eq('convenio', convenio)
-        .order('id')
-        .range(from, from + step - 1);
-        
-      if (error || !data || data.length === 0) {
-        hasMore = false;
-      } else {
-        tablasRaw = [...tablasRaw, ...data];
-        from += step;
-        if (data.length < step) hasMore = false;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      tablasRaw = [];
+      queryError = null;
+      let hasMore = true;
+      let from = 0;
+      const step = 1000;
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('tablas_cotizador')
+          .select('*')
+          .eq('tramite', tipoTramite)
+          .eq('convenio', convenio)
+          .order('id')
+          .range(from, from + step - 1);
+          
+        if (error) {
+          console.error(`[Cotizador] Error Supabase (intento ${attempt + 1}):`, error);
+          queryError = error;
+          hasMore = false;
+        } else if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          tablasRaw = [...tablasRaw, ...data];
+          from += step;
+          if (data.length < step) hasMore = false;
+        }
+      }
+
+      // Si obtuvimos datos o no hubo error (resultado legítimamente vacío), salimos
+      if (tablasRaw.length > 0 || !queryError) break;
+      // Si hubo error, esperamos antes de reintentar
+      if (attempt < maxRetries) {
+        console.log(`[Cotizador] Reintentando consulta (${attempt + 2}/${maxRetries + 1})...`);
+        await new Promise(r => setTimeout(r, 500));
       }
     }
 
