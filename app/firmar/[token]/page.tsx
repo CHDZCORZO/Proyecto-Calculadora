@@ -236,6 +236,7 @@ export default function FirmarPage({ params }: { params: { token: string } }) {
   }
 
   const documentUrl = docInfo ? `/api/documentos/${encodeURIComponent(docInfo.file_path)}` : "";
+  const fullDocumentUrl = typeof window !== 'undefined' && documentUrl ? `${window.location.origin}${documentUrl}` : documentUrl;
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 font-sans p-6 md:p-12">
@@ -252,9 +253,9 @@ export default function FirmarPage({ params }: { params: { token: string } }) {
           <div className="bg-neutral-900/50 p-6 rounded-[3rem] border border-neutral-800 shadow-2xl flex flex-col animate-in fade-in slide-in-from-left-4 duration-700">
             <h3 className="font-black uppercase tracking-widest text-sm text-neutral-300 mb-4 text-center">Vista Previa del Documento</h3>
             <div className="flex-1 bg-white rounded-2xl overflow-hidden border border-neutral-700 h-[50vh] lg:h-[600px] relative">
-              {documentUrl && (
+              {fullDocumentUrl && (
                 <iframe 
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(documentUrl)}&embedded=true`} 
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(fullDocumentUrl)}&embedded=true`} 
                   className="w-full h-full absolute inset-0" 
                   title="Vista previa del documento"
                   frameBorder="0"
