@@ -104,6 +104,7 @@ export function ActualizacionIMSS({ prefilledNombre, prefilledCorreoAnterior, on
         .from('imss_documents')
         .upload(filePath, pdfBytes, {
           contentType: 'application/pdf',
+          cacheControl: '0',
           upsert: true
         });
 

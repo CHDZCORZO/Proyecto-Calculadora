@@ -27,9 +27,12 @@ export async function GET(
       },
     });
 
+    const { searchParams } = new URL(request.url);
+    const cacheNonce = searchParams.get('t') || searchParams.get('v') || Date.now().toString();
+
     const { data, error } = await supabase.storage
       .from('imss_documents')
-      .download(filename);
+      .download(filename, { cacheNonce });
 
     if (error || !data) {
       return new NextResponse('Documento no encontrado', { status: 404 });

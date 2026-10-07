@@ -168,6 +168,7 @@ export default function FirmarPage({ params }: { params: { token: string } }) {
         .from('imss_documents')
         .upload(docInfo.file_path, updatedPdfBytes, {
           contentType: 'application/pdf',
+          cacheControl: '0',
           upsert: true
         });
 
